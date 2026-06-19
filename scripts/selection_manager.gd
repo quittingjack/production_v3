@@ -31,7 +31,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				_finish_left_action(world_position)
 			get_viewport().set_input_as_handled()
 		elif mouse_button.button_index == MOUSE_BUTTON_RIGHT and mouse_button.pressed:
-			_move_selection_to(world_position)
+			_command_selection_at(world_position)
 			get_viewport().set_input_as_handled()
 
 	elif event is InputEventMouseMotion and _left_button_down:
@@ -118,6 +118,32 @@ func _move_selection_to(world_position: Vector2) -> void:
 	for villager in _selected_villagers:
 		if is_instance_valid(villager):
 			villager.move_to(world_position)
+
+
+func _command_selection_at(world_position: Vector2) -> void:
+	var resource_node := _find_resource_at(world_position)
+	if resource_node:
+		for villager in _selected_villagers:
+			if is_instance_valid(villager):
+				villager.gather_from(resource_node)
+		return
+
+	_move_selection_to(world_position)
+
+
+func _find_resource_at(world_position: Vector2) -> ResourceNode:
+	var closest_resource: ResourceNode = null
+	var closest_distance := INF
+
+	for node in get_tree().get_nodes_in_group(&"resources"):
+		var resource_node := node as ResourceNode
+		if resource_node and resource_node.contains_point(world_position):
+			var distance := resource_node.global_position.distance_squared_to(world_position)
+			if distance < closest_distance:
+				closest_resource = resource_node
+				closest_distance = distance
+
+	return closest_resource
 
 
 func _selection_rect() -> Rect2:

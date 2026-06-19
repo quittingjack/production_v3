@@ -100,6 +100,10 @@ func _place_building() -> void:
 	_rebuild_navigation()
 
 
+func request_navigation_rebuild() -> void:
+	_rebuild_navigation()
+
+
 func _can_place_at(world_position: Vector2) -> bool:
 	var building_rect := Rect2(world_position - BUILDING_SIZE * 0.5, BUILDING_SIZE)
 	if not navigation_bounds.encloses(building_rect):
@@ -126,15 +130,20 @@ func _rebuild_navigation() -> void:
 	var source_geometry := NavigationMeshSourceGeometryData2D.new()
 	source_geometry.add_traversable_outline(_rect_outline(navigation_bounds))
 
-	for node in get_tree().get_nodes_in_group(&"buildings"):
-		var building := node as Node2D
-		if not building:
+	var obstacle_nodes: Array[Node] = []
+	obstacle_nodes.append_array(get_tree().get_nodes_in_group(&"buildings"))
+	obstacle_nodes.append_array(get_tree().get_nodes_in_group(&"resources"))
+
+	for node in obstacle_nodes:
+		var obstacle := node as Node2D
+		if not obstacle or not obstacle.has_method("get_navigation_obstacle_size"):
 			continue
+		var obstacle_size: Vector2 = obstacle.get_navigation_obstacle_size()
 		var obstruction := _rectangle_polygon(
-			BUILDING_SIZE * 0.5 + Vector2.ONE * NAVIGATION_CLEARANCE
+			obstacle_size * 0.5 + Vector2.ONE * NAVIGATION_CLEARANCE
 		)
 		for index in obstruction.size():
-			obstruction[index] += building.global_position
+			obstruction[index] += obstacle.global_position
 		source_geometry.add_projected_obstruction(obstruction, true)
 
 	NavigationServer2D.bake_from_source_geometry_data(

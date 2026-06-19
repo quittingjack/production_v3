@@ -1,9 +1,12 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/building.gd" id="1_building"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_building"]
 size = Vector2(96, 96)
 
 [node name="Building" type="Node2D" groups=["buildings"]]
+script = ExtResource("1_building")
 
 [node name="Body" type="Polygon2D" parent="."]
 color = Color(0.58, 0.34, 0.16, 1)
@@ -18,6 +21,20 @@ polygon = PackedVector2Array(-40, -40, 40, -40, 40, -8, -40, -8)
 z_index = 1
 color = Color(0.24, 0.13, 0.07, 1)
 polygon = PackedVector2Array(-12, 12, 12, 12, 12, 48, -12, 48)
+
+[node name="StorageLabel" type="Label" parent="."]
+z_index = 2
+offset_left = -56.0
+offset_top = -76.0
+offset_right = 56.0
+offset_bottom = -52.0
+theme_override_colors/font_color = Color(1, 0.92, 0.72, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 16
+text = "木頭：0/20"
+horizontal_alignment = 1
 
 [node name="StaticBody2D" type="StaticBody2D" parent="."]
 collision_layer = 2
