@@ -2,6 +2,9 @@
 
 [ext_resource type="PackedScene" path="res://scenes/Villager.tscn" id="1_0wfyh"]
 [ext_resource type="Script" uid="uid://cll2wyhosdgc8" path="res://scripts/selection_manager.gd" id="2_sugp2"]
+[ext_resource type="Script" uid="uid://7dauewhoqo13" path="res://scripts/camera_controller.gd" id="3_camera"]
+
+[sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_sugp2"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_help"]
 content_margin_left = 14.0
@@ -16,10 +19,15 @@ corner_radius_bottom_left = 8
 
 [node name="Main" type="Node2D" unique_id=867135662]
 
+[node name="Camera2D" type="Camera2D" parent="." unique_id=2056613019]
+position = Vector2(576, 324)
+script = ExtResource("3_camera")
+
 [node name="Background" type="Polygon2D" parent="." unique_id=1014819784]
 z_index = -10
 color = Color(0.12, 0.18, 0.16, 1)
-polygon = PackedVector2Array(0, 0, 1152, 0, 1152, 648, 0, 648)
+texture = SubResource("PlaceholderTexture2D_sugp2")
+polygon = PackedVector2Array(-1468, -1036, 2387, -1047, 2394, 1480, -1479, 1459)
 
 [node name="Villagers" type="Node2D" parent="." unique_id=1067099618]
 
@@ -60,9 +68,9 @@ antialiased = true
 [node name="Help" type="Label" parent="Interface" unique_id=255283850]
 offset_left = 18.0
 offset_top = 18.0
-offset_right = 425.0
+offset_right = 760.0
 offset_bottom = 65.0
 theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
 theme_override_font_sizes/font_size = 18
 theme_override_styles/normal = SubResource("StyleBoxFlat_help")
-text = "左鍵：單選／拖曳框選    右鍵：移動    左鍵空地：取消選取"
+text = "左鍵：單選／拖曳框選    右鍵：移動    WASD：移動相機    滾輪：縮放"
