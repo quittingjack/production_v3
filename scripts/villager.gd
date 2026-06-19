@@ -103,6 +103,10 @@ func is_selected() -> bool:
 	return _is_selected
 
 
+func get_state_name() -> String:
+	return WorkState.keys()[_state]
+
+
 func move_to(world_position: Vector2) -> void:
 	_release_all_slots()
 	_resource_target = null
@@ -226,9 +230,7 @@ func _move_to_resource_approach() -> void:
 
 	_release_resource_slot()
 	_state = WorkState.MOVING_TO_RESOURCE_APPROACH
-	_set_movement_target(
-		_resource_target.get_approach_position(_approach_direction)
-	)
+	_set_movement_target(_resource_target.get_approach_position(global_position))
 
 
 func _try_reserve_resource_slot() -> void:

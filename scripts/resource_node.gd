@@ -48,8 +48,11 @@ func get_interaction_position(from_position: Vector2) -> Vector2:
 	return get_interaction_slot_position(_get_nearest_direction(from_position))
 
 
-func get_approach_position(direction_index: int) -> Vector2:
-	return _get_direction_position(direction_index, approach_clearance)
+func get_approach_position(from_position: Vector2) -> Vector2:
+	return _get_direction_position(
+		_get_nearest_approach_direction(from_position),
+		approach_clearance
+	)
 
 
 func has_available_interaction_slot(occupant: Node = null) -> bool:
@@ -140,6 +143,21 @@ func _get_nearest_direction(from_position: Vector2) -> int:
 	for direction_index in 4:
 		var slot_position := get_interaction_slot_position(direction_index)
 		var distance := from_position.distance_squared_to(slot_position)
+		if distance < nearest_distance:
+			nearest_direction = direction_index
+			nearest_distance = distance
+	return nearest_direction
+
+
+func _get_nearest_approach_direction(from_position: Vector2) -> int:
+	var nearest_direction := 0
+	var nearest_distance := INF
+	for direction_index in 4:
+		var approach_position := _get_direction_position(
+			direction_index,
+			approach_clearance
+		)
+		var distance := from_position.distance_squared_to(approach_position)
 		if distance < nearest_distance:
 			nearest_direction = direction_index
 			nearest_distance = distance

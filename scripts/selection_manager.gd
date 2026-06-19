@@ -114,6 +114,16 @@ func _clear_selection() -> void:
 	_selected_villagers.clear()
 
 
+func get_single_selected_villager() -> Villager:
+	if _selected_villagers.size() != 1:
+		return null
+
+	var villager := _selected_villagers[0]
+	if not is_instance_valid(villager):
+		return null
+	return villager
+
+
 func _move_selection_to(world_position: Vector2) -> void:
 	for villager in _selected_villagers:
 		if is_instance_valid(villager):

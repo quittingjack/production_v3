@@ -10,6 +10,7 @@ radius = 16.0
 [node name="Villager" type="CharacterBody2D" unique_id=1939594127 groups=["villagers"]]
 collision_mask = 3
 script = ExtResource("1_script")
+avoidance_neighbor_distance = 90.0
 
 [node name="BodySprite" type="Sprite2D" parent="." unique_id=1825924388]
 texture_filter = 1
@@ -41,4 +42,5 @@ shape = SubResource("CircleShape2D_villager")
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="." unique_id=554707852]
 path_desired_distance = 8.0
 target_desired_distance = 4.0
-radius = 32.0
+avoidance_enabled = true
+radius = 16.0
