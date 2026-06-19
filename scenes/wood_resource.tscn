@@ -1,23 +1,24 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://b446t2rotidpl"]
 
-[ext_resource type="Script" path="res://scripts/resource_node.gd" id="1_resource"]
+[ext_resource type="Script" uid="uid://bxtq3p4g71spx" path="res://scripts/resource_node.gd" id="1_resource"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_resource"]
 size = Vector2(64, 64)
 
-[node name="WoodResource" type="Node2D" groups=["resources"]]
+[node name="WoodResource" type="Node2D" unique_id=213156922 groups=["resources"]]
 script = ExtResource("1_resource")
+resource_amount = 20000
 
-[node name="Trunk" type="Polygon2D" parent="."]
+[node name="Trunk" type="Polygon2D" parent="." unique_id=449471167]
 z_index = 1
 color = Color(0.42, 0.22, 0.08, 1)
 polygon = PackedVector2Array(-9, -2, 9, -2, 9, 32, -9, 32)
 
-[node name="Crown" type="Polygon2D" parent="."]
+[node name="Crown" type="Polygon2D" parent="." unique_id=166819825]
 color = Color(0.18, 0.5, 0.2, 1)
 polygon = PackedVector2Array(0, -32, 30, -4, 22, 24, -22, 24, -30, -4)
 
-[node name="AmountLabel" type="Label" parent="."]
+[node name="AmountLabel" type="Label" parent="." unique_id=1664520518]
 offset_left = -42.0
 offset_top = -58.0
 offset_right = 42.0
@@ -30,9 +31,8 @@ theme_override_font_sizes/font_size = 16
 text = "木頭：20"
 horizontal_alignment = 1
 
-[node name="StaticBody2D" type="StaticBody2D" parent="."]
+[node name="StaticBody2D" type="StaticBody2D" parent="." unique_id=666621359]
 collision_layer = 2
-collision_mask = 1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D" unique_id=181792340]
 shape = SubResource("RectangleShape2D_resource")

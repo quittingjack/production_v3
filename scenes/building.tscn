@@ -1,28 +1,29 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://ddtm6hdpisa3t"]
 
-[ext_resource type="Script" path="res://scripts/building.gd" id="1_building"]
+[ext_resource type="Script" uid="uid://dug51o87qub1m" path="res://scripts/building.gd" id="1_building"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_building"]
 size = Vector2(96, 96)
 
-[node name="Building" type="Node2D" groups=["buildings"]]
+[node name="Building" type="Node2D" unique_id=174574568 groups=["buildings"]]
 script = ExtResource("1_building")
+max_storage = 10000
 
-[node name="Body" type="Polygon2D" parent="."]
+[node name="Body" type="Polygon2D" parent="." unique_id=142718278]
 color = Color(0.58, 0.34, 0.16, 1)
 polygon = PackedVector2Array(-48, -48, 48, -48, 48, 48, -48, 48)
 
-[node name="Roof" type="Polygon2D" parent="."]
+[node name="Roof" type="Polygon2D" parent="." unique_id=1386543769]
 z_index = 1
 color = Color(0.82, 0.56, 0.25, 1)
 polygon = PackedVector2Array(-40, -40, 40, -40, 40, -8, -40, -8)
 
-[node name="Door" type="Polygon2D" parent="."]
+[node name="Door" type="Polygon2D" parent="." unique_id=763167379]
 z_index = 1
 color = Color(0.24, 0.13, 0.07, 1)
 polygon = PackedVector2Array(-12, 12, 12, 12, 12, 48, -12, 48)
 
-[node name="StorageLabel" type="Label" parent="."]
+[node name="StorageLabel" type="Label" parent="." unique_id=2071005703]
 z_index = 2
 offset_left = -56.0
 offset_top = -76.0
@@ -36,9 +37,8 @@ theme_override_font_sizes/font_size = 16
 text = "木頭：0/20"
 horizontal_alignment = 1
 
-[node name="StaticBody2D" type="StaticBody2D" parent="."]
+[node name="StaticBody2D" type="StaticBody2D" parent="." unique_id=1941579408]
 collision_layer = 2
-collision_mask = 1
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D" unique_id=1066424440]
 shape = SubResource("RectangleShape2D_building")
