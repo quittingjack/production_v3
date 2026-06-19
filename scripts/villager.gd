@@ -1,9 +1,18 @@
+@tool
 class_name Villager
 extends CharacterBody2D
 
 signal selection_changed(villager: Villager, is_selected: bool)
 
-const RADIUS := 32.0
+const BASE_BODY_SCALE := Vector2(1.0, 1.0)
+const BASE_COLLISION_RADIUS := 32.0
+const BASE_SELECTION_RADIUS := 32.0
+const BASE_LABEL_OFFSETS := {
+	"left": -50.0,
+	"top": -60.0,
+	"right": 50.0,
+	"bottom": -36.0,
+}
 
 enum WorkState {
 	IDLE,
@@ -27,8 +36,14 @@ enum WorkState {
 @export var slot_move_timeout := 3.0
 @export var avoidance_neighbor_distance := 180.0
 @export var avoidance_max_neighbors := 8
+@export_range(0.25, 4.0, 0.05) var size_scale := 1.0:
+	set(value):
+		size_scale = maxf(value, 0.05)
+		_apply_size_settings()
 
+@onready var body_sprite: Sprite2D = $BodySprite
 @onready var selection_highlight: Sprite2D = $SelectionHighlight
+@onready var collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var navigation_agent: NavigationAgent2D = $NavigationAgent2D
 @onready var backpack_label: Label = $BackpackLabel
 
@@ -46,12 +61,17 @@ var _slot_move_timer := 0.0
 var _resource_slot := -1
 var _building_slot := -1
 var _approach_direction := 0
+var _selection_radius := BASE_SELECTION_RADIUS
+
+
+func _enter_tree() -> void:
+	_apply_size_settings()
 
 
 func _ready() -> void:
+	_apply_size_settings()
 	_approach_direction = int(get_instance_id() % 4)
 	navigation_agent.avoidance_enabled = true
-	navigation_agent.radius = RADIUS
 	navigation_agent.max_speed = move_speed
 	navigation_agent.neighbor_distance = avoidance_neighbor_distance
 	navigation_agent.max_neighbors = avoidance_max_neighbors
@@ -157,7 +177,30 @@ func stop_moving() -> void:
 
 
 func contains_point(world_position: Vector2) -> bool:
-	return global_position.distance_squared_to(world_position) <= RADIUS * RADIUS
+	return (
+		global_position.distance_squared_to(world_position)
+		<= _selection_radius * _selection_radius
+	)
+
+
+func _apply_size_settings() -> void:
+	_selection_radius = BASE_SELECTION_RADIUS * size_scale
+
+	if not is_node_ready():
+		return
+
+	body_sprite.scale = BASE_BODY_SCALE * size_scale
+	selection_highlight.scale = Vector2.ONE * size_scale
+
+	var circle_shape := collision_shape.shape as CircleShape2D
+	if circle_shape:
+		circle_shape.radius = BASE_COLLISION_RADIUS * size_scale
+
+	navigation_agent.radius = BASE_COLLISION_RADIUS * size_scale
+	backpack_label.offset_left = BASE_LABEL_OFFSETS["left"] * size_scale
+	backpack_label.offset_top = BASE_LABEL_OFFSETS["top"] * size_scale
+	backpack_label.offset_right = BASE_LABEL_OFFSETS["right"] * size_scale
+	backpack_label.offset_bottom = BASE_LABEL_OFFSETS["bottom"] * size_scale
 
 
 func _update_work(delta: float) -> void:
