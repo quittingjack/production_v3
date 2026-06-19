@@ -49,10 +49,16 @@ func get_interaction_position(from_position: Vector2) -> Vector2:
 
 
 func get_approach_position(from_position: Vector2) -> Vector2:
-	return _get_direction_position(
-		_get_nearest_approach_direction(from_position),
-		approach_clearance
-	)
+	var direction := _get_nearest_approach_direction(from_position)
+	match posmod(direction, 4):
+		0:
+			return global_position + Vector2(-approach_clearance, 0.0)
+		1:
+			return global_position + Vector2(approach_clearance, 0.0)
+		2:
+			return global_position + Vector2(0.0, -approach_clearance)
+		_:
+			return global_position + Vector2(0.0, approach_clearance)
 
 
 func has_available_interaction_slot(occupant: Node = null) -> bool:

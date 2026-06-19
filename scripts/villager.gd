@@ -205,6 +205,14 @@ func _apply_size_settings() -> void:
 
 func _update_work(delta: float) -> void:
 	match _state:
+		WorkState.MOVING_TO_RESOURCE_APPROACH:
+			if not _is_resource_available(_resource_target):
+				_handle_resource_unavailable()
+				return
+			if _is_within_resource_slot_claim_distance():
+				_try_reserve_resource_slot()
+				return
+			_update_resource_approach_target()
 		WorkState.WAITING_FOR_RESOURCE_SLOT:
 			if not _is_resource_available(_resource_target):
 				_handle_resource_unavailable()
@@ -249,7 +257,10 @@ func _arrive_at_target() -> void:
 		WorkState.MOVING:
 			_state = WorkState.IDLE
 		WorkState.MOVING_TO_RESOURCE_APPROACH:
-			_try_reserve_resource_slot()
+			if _is_within_resource_slot_claim_distance():
+				_try_reserve_resource_slot()
+			else:
+				_update_resource_approach_target()
 		WorkState.MOVING_TO_RESOURCE_SLOT:
 			if _is_resource_available(_resource_target) and _resource_slot >= 0:
 				_state = WorkState.GATHERING
@@ -273,7 +284,7 @@ func _move_to_resource_approach() -> void:
 
 	_release_resource_slot()
 	_state = WorkState.MOVING_TO_RESOURCE_APPROACH
-	_set_movement_target(_resource_target.get_approach_position(global_position))
+	_update_resource_approach_target()
 
 
 func _try_reserve_resource_slot() -> void:
@@ -298,6 +309,28 @@ func _try_reserve_resource_slot() -> void:
 	_state = WorkState.MOVING_TO_RESOURCE_SLOT
 	_set_movement_target(
 		_resource_target.get_interaction_slot_position(_resource_slot)
+	)
+
+
+func _update_resource_approach_target() -> void:
+	if not _is_resource_available(_resource_target):
+		return
+
+	var approach_target := _resource_target.get_approach_position(global_position)
+	if (
+		not _has_target
+		or _target_position.distance_squared_to(approach_target) > 1.0
+	):
+		_set_movement_target(approach_target)
+
+
+func _is_within_resource_slot_claim_distance() -> bool:
+	if not _is_resource_available(_resource_target):
+		return false
+
+	return (
+		global_position.distance_squared_to(_resource_target.global_position)
+		<= _resource_target.approach_clearance * _resource_target.approach_clearance
 	)
 
 
