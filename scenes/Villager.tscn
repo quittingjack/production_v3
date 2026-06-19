@@ -9,7 +9,7 @@ radius = 32.0
 
 [node name="Villager" type="CharacterBody2D" groups=["villagers"]]
 collision_layer = 1
-collision_mask = 1
+collision_mask = 3
 script = ExtResource("1_script")
 
 [node name="BodySprite" type="Sprite2D" parent="."]
@@ -24,3 +24,8 @@ texture = ExtResource("3_highlight")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_villager")
+
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+path_desired_distance = 8.0
+target_desired_distance = 4.0
+radius = 32.0

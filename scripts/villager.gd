@@ -7,14 +7,13 @@ const RADIUS := 32.0
 
 @export var move_speed := 220.0
 @export var arrival_distance := 3.0
-@export var blocked_stop_time := 0.25
 
 @onready var selection_highlight: Sprite2D = $SelectionHighlight
+@onready var navigation_agent: NavigationAgent2D = $NavigationAgent2D
 
 var _target_position := Vector2.ZERO
 var _has_target := false
 var _is_selected := false
-var _blocked_time := 0.0
 
 
 func _physics_process(delta: float) -> void:
@@ -22,24 +21,21 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		return
 
-	var target_offset := _target_position - global_position
-	var distance_to_target := target_offset.length()
-	if distance_to_target <= arrival_distance:
+	if navigation_agent.is_navigation_finished():
 		stop_moving()
 		return
 
-	velocity = target_offset.normalized() * minf(move_speed, distance_to_target / maxf(delta, 0.001))
-	var position_before_move := global_position
-	move_and_slide()
+	var next_path_position := navigation_agent.get_next_path_position()
+	var target_offset := next_path_position - global_position
+	if target_offset.length() <= arrival_distance:
+		velocity = Vector2.ZERO
+		return
 
-	var moved_distance := position_before_move.distance_to(global_position)
-	var expected_distance := velocity.length() * delta
-	if get_slide_collision_count() > 0 and moved_distance < minf(0.5, expected_distance * 0.1):
-		_blocked_time += delta
-		if _blocked_time >= blocked_stop_time:
-			stop_moving()
-	else:
-		_blocked_time = 0.0
+	velocity = target_offset.normalized() * minf(
+		move_speed,
+		target_offset.length() / maxf(delta, 0.001)
+	)
+	move_and_slide()
 
 
 func set_selected(value: bool) -> void:
@@ -58,13 +54,17 @@ func is_selected() -> bool:
 func move_to(world_position: Vector2) -> void:
 	_target_position = world_position
 	_has_target = true
-	_blocked_time = 0.0
+	navigation_agent.target_position = world_position
+
+
+func refresh_navigation_target() -> void:
+	if _has_target:
+		navigation_agent.target_position = _target_position
 
 
 func stop_moving() -> void:
 	_has_target = false
 	velocity = Vector2.ZERO
-	_blocked_time = 0.0
 
 
 func contains_point(world_position: Vector2) -> bool:

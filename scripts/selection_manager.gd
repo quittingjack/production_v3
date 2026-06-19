@@ -17,6 +17,9 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _is_building_placement_active():
+		return
+
 	if event is InputEventMouseButton:
 		var mouse_button := event as InputEventMouseButton
 		var world_position := _screen_to_world(mouse_button.position)
@@ -150,3 +153,10 @@ func _set_selection_box_visible(value: bool) -> void:
 
 func _screen_to_world(screen_position: Vector2) -> Vector2:
 	return get_viewport().get_canvas_transform().affine_inverse() * screen_position
+
+
+func _is_building_placement_active() -> bool:
+	var managers := get_tree().get_nodes_in_group(&"building_managers")
+	if managers.is_empty():
+		return false
+	return managers[0].is_placing()

@@ -1,0 +1,27 @@
+[gd_scene load_steps=2 format=3]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_building"]
+size = Vector2(96, 96)
+
+[node name="Building" type="Node2D" groups=["buildings"]]
+
+[node name="Body" type="Polygon2D" parent="."]
+color = Color(0.58, 0.34, 0.16, 1)
+polygon = PackedVector2Array(-48, -48, 48, -48, 48, 48, -48, 48)
+
+[node name="Roof" type="Polygon2D" parent="."]
+z_index = 1
+color = Color(0.82, 0.56, 0.25, 1)
+polygon = PackedVector2Array(-40, -40, 40, -40, 40, -8, -40, -8)
+
+[node name="Door" type="Polygon2D" parent="."]
+z_index = 1
+color = Color(0.24, 0.13, 0.07, 1)
+polygon = PackedVector2Array(-12, 12, 12, 12, 12, 48, -12, 48)
+
+[node name="StaticBody2D" type="StaticBody2D" parent="."]
+collision_layer = 2
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+shape = SubResource("RectangleShape2D_building")
