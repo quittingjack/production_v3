@@ -45,6 +45,7 @@ enum WorkState {
 @onready var selection_highlight: Sprite2D = $SelectionHighlight
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var navigation_agent: NavigationAgent2D = $NavigationAgent2D
+@onready var navigation_obstacle: NavigationObstacle2D = $NavigationObstacle2D
 @onready var backpack_label: Label = $BackpackLabel
 
 var _target_position := Vector2.ZERO
@@ -62,6 +63,7 @@ var _resource_slot := -1
 var _building_slot := -1
 var _approach_direction := 0
 var _selection_radius := BASE_SELECTION_RADIUS
+var _is_navigation_stationary := true
 
 
 func _enter_tree() -> void:
@@ -71,12 +73,12 @@ func _enter_tree() -> void:
 func _ready() -> void:
 	_apply_size_settings()
 	_approach_direction = int(get_instance_id() % 4)
-	navigation_agent.avoidance_enabled = true
 	navigation_agent.max_speed = move_speed
 	navigation_agent.neighbor_distance = avoidance_neighbor_distance
 	navigation_agent.max_neighbors = avoidance_max_neighbors
 	navigation_agent.velocity_computed.connect(_on_velocity_computed)
 	navigation_agent.target_position = global_position
+	_set_navigation_stationary(true)
 	_update_backpack_label()
 
 
@@ -127,6 +129,10 @@ func get_state_name() -> String:
 	return WorkState.keys()[_state]
 
 
+func is_stationary() -> bool:
+	return _is_navigation_stationary
+
+
 func move_to(world_position: Vector2) -> void:
 	_release_all_slots()
 	_resource_target = null
@@ -160,6 +166,7 @@ func gather_from(resource_node: ResourceNode) -> void:
 func _set_movement_target(world_position: Vector2) -> void:
 	_target_position = world_position
 	_has_target = true
+	_set_navigation_stationary(false)
 	navigation_agent.target_position = world_position
 
 
@@ -172,6 +179,7 @@ func stop_moving() -> void:
 	_has_target = false
 	velocity = Vector2.ZERO
 	navigation_agent.velocity = Vector2.ZERO
+	_set_navigation_stationary(true)
 	if _state == WorkState.MOVING:
 		_state = WorkState.IDLE
 
@@ -197,6 +205,7 @@ func _apply_size_settings() -> void:
 		circle_shape.radius = BASE_COLLISION_RADIUS * size_scale
 
 	navigation_agent.radius = BASE_COLLISION_RADIUS * size_scale
+	navigation_obstacle.radius = BASE_COLLISION_RADIUS * size_scale
 	backpack_label.offset_left = BASE_LABEL_OFFSETS["left"] * size_scale
 	backpack_label.offset_top = BASE_LABEL_OFFSETS["top"] * size_scale
 	backpack_label.offset_right = BASE_LABEL_OFFSETS["right"] * size_scale
@@ -275,6 +284,8 @@ func _arrive_at_target() -> void:
 			else:
 				_release_building_slot()
 				_find_and_move_to_building()
+
+	_set_navigation_stationary(not _has_target)
 
 
 func _move_to_resource_approach() -> void:
@@ -632,6 +643,13 @@ func _stop_at_current_position() -> void:
 	_has_target = false
 	velocity = Vector2.ZERO
 	navigation_agent.velocity = Vector2.ZERO
+	_set_navigation_stationary(true)
+
+
+func _set_navigation_stationary(is_stationary: bool) -> void:
+	_is_navigation_stationary = is_stationary
+	navigation_agent.avoidance_enabled = not is_stationary
+	navigation_obstacle.avoidance_enabled = is_stationary
 
 
 func _clear_backpack() -> void:

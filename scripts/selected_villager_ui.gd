@@ -4,6 +4,7 @@ extends PanelContainer
 
 @onready var villager_name_label: Label = %VillagerNameLabel
 @onready var state_value_label: Label = %StateValueLabel
+@onready var stationary_value_label: Label = %StationaryValueLabel
 
 var _selection_manager: Node
 
@@ -24,3 +25,4 @@ func _process(_delta: float) -> void:
 	visible = true
 	villager_name_label.text = villager.name
 	state_value_label.text = villager.get_state_name()
+	stationary_value_label.text = str(villager.is_stationary())

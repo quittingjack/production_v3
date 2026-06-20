@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://cjv8slvqwhtht"]
+[gd_scene format=3 uid="uid://b2oy2v1vj5kc2"]
 
 [ext_resource type="Script" uid="uid://dnfc21w5lejo2" path="res://scripts/villager.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://cxdxackju2o68" path="res://assets/villager.png" id="2_villager"]
@@ -45,8 +45,10 @@ shape = SubResource("CircleShape2D_villager")
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="." unique_id=554707852]
 path_desired_distance = 8.0
 target_desired_distance = 4.0
-avoidance_enabled = true
 radius = 9.6
 neighbor_distance = 90.0
 max_neighbors = 8
 max_speed = 220.0
+
+[node name="NavigationObstacle2D" type="NavigationObstacle2D" parent="." unique_id=749458035]
+radius = 9.6
