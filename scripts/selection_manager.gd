@@ -1,6 +1,7 @@
 extends Node2D
 
 @export var drag_threshold := 8.0
+@export var formation_spacing := 32.0
 
 @onready var selection_fill: Polygon2D = $SelectionFill
 @onready var selection_border: Line2D = $SelectionBorder
@@ -125,9 +126,80 @@ func get_single_selected_villager() -> Villager:
 
 
 func _move_selection_to(world_position: Vector2) -> void:
+	var villagers: Array[Villager] = []
 	for villager in _selected_villagers:
 		if is_instance_valid(villager):
-			villager.move_to(world_position)
+			villagers.append(villager)
+
+	if villagers.is_empty():
+		return
+
+	villagers.sort_custom(_sort_villagers_by_position)
+	var formation_positions := _get_formation_positions(
+		world_position,
+		villagers.size()
+	)
+	for villager_index in villagers.size():
+		villagers[villager_index].move_to(
+			formation_positions[villager_index]
+		)
+
+
+func _sort_villagers_by_position(
+	first_villager: Villager,
+	second_villager: Villager
+) -> bool:
+	if not is_equal_approx(
+		first_villager.global_position.y,
+		second_villager.global_position.y
+	):
+		return (
+			first_villager.global_position.y
+			< second_villager.global_position.y
+		)
+	if not is_equal_approx(
+		first_villager.global_position.x,
+		second_villager.global_position.x
+	):
+		return (
+			first_villager.global_position.x
+			< second_villager.global_position.x
+		)
+	return first_villager.get_instance_id() < second_villager.get_instance_id()
+
+
+func _get_formation_positions(
+	center_position: Vector2,
+	villager_count: int
+) -> Array[Vector2]:
+	var positions: Array[Vector2] = []
+	if villager_count <= 0:
+		return positions
+	if villager_count == 1:
+		positions.append(center_position)
+		return positions
+
+	var column_count := ceili(sqrt(float(villager_count)))
+	var row_count := ceili(float(villager_count) / column_count)
+	var formation_height := (row_count - 1) * formation_spacing
+
+	for row_index in row_count:
+		var villagers_before_row := row_index * column_count
+		var villagers_in_row := mini(
+			column_count,
+			villager_count - villagers_before_row
+		)
+		var row_width := (villagers_in_row - 1) * formation_spacing
+		for column_index in villagers_in_row:
+			positions.append(
+				center_position
+				+ Vector2(
+					column_index * formation_spacing - row_width * 0.5,
+					row_index * formation_spacing - formation_height * 0.5
+				)
+			)
+
+	return positions
 
 
 func _command_selection_at(world_position: Vector2) -> void:

@@ -202,10 +202,10 @@ func _apply_size_settings() -> void:
 
 	var circle_shape := collision_shape.shape as CircleShape2D
 	if circle_shape:
-		circle_shape.radius = BASE_COLLISION_RADIUS * size_scale
+		circle_shape.radius = BASE_COLLISION_RADIUS * size_scale * 0.5
 
-	navigation_agent.radius = BASE_COLLISION_RADIUS * size_scale
-	navigation_obstacle.radius = BASE_COLLISION_RADIUS * size_scale
+	navigation_agent.radius = BASE_COLLISION_RADIUS * size_scale * 0.5
+	navigation_obstacle.radius = BASE_COLLISION_RADIUS * size_scale * 0.5
 	backpack_label.offset_left = BASE_LABEL_OFFSETS["left"] * size_scale
 	backpack_label.offset_top = BASE_LABEL_OFFSETS["top"] * size_scale
 	backpack_label.offset_right = BASE_LABEL_OFFSETS["right"] * size_scale

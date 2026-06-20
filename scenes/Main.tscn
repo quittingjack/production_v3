@@ -1,11 +1,11 @@
 [gd_scene format=3 uid="uid://d2u60khh5gtb3"]
 
-[ext_resource type="PackedScene" path="res://scenes/villager.tscn" id="1_0wfyh"]
+[ext_resource type="PackedScene" uid="uid://b2oy2v1vj5kc2" path="res://scenes/villager.tscn" id="1_0wfyh"]
 [ext_resource type="Script" uid="uid://cll2wyhosdgc8" path="res://scripts/selection_manager.gd" id="2_sugp2"]
 [ext_resource type="Script" uid="uid://7dauewhoqo13" path="res://scripts/camera_controller.gd" id="3_camera"]
-[ext_resource type="Script" path="res://scripts/building_manager.gd" id="4_building"]
-[ext_resource type="PackedScene" path="res://scenes/wood_resource.tscn" id="5_resource"]
-[ext_resource type="Script" path="res://scripts/selected_villager_ui.gd" id="6_villager_ui"]
+[ext_resource type="Script" uid="uid://vd6mjevw2eis" path="res://scripts/building_manager.gd" id="4_building"]
+[ext_resource type="PackedScene" uid="uid://b446t2rotidpl" path="res://scenes/wood_resource.tscn" id="5_resource"]
+[ext_resource type="Script" uid="uid://he8omt5eoimf" path="res://scripts/selected_villager_ui.gd" id="6_villager_ui"]
 
 [sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_sugp2"]
 
@@ -48,7 +48,7 @@ color = Color(0.12, 0.18, 0.16, 1)
 texture = SubResource("PlaceholderTexture2D_sugp2")
 polygon = PackedVector2Array(-1468, -1036, 2387, -1047, 2394, 1480, -1479, 1459)
 
-[node name="NavigationRegion2D" type="NavigationRegion2D" parent="."]
+[node name="NavigationRegion2D" type="NavigationRegion2D" parent="." unique_id=279634933]
 
 [node name="Villagers" type="Node2D" parent="." unique_id=1067099618]
 
@@ -70,17 +70,17 @@ position = Vector2(480, 370)
 [node name="Villager6" parent="Villagers" unique_id=170303806 instance=ExtResource("1_0wfyh")]
 position = Vector2(620, 350)
 
-[node name="Buildings" type="Node2D" parent="."]
+[node name="Buildings" type="Node2D" parent="." unique_id=1391473100]
 
-[node name="Resources" type="Node2D" parent="."]
+[node name="Resources" type="Node2D" parent="." unique_id=2025530553]
 
-[node name="WoodResource1" parent="Resources" instance=ExtResource("5_resource")]
+[node name="WoodResource1" parent="Resources" unique_id=753469752 instance=ExtResource("5_resource")]
 position = Vector2(820, 190)
 
-[node name="WoodResource2" parent="Resources" instance=ExtResource("5_resource")]
+[node name="WoodResource2" parent="Resources" unique_id=256820842 instance=ExtResource("5_resource")]
 position = Vector2(940, 340)
 
-[node name="WoodResource3" parent="Resources" instance=ExtResource("5_resource")]
+[node name="WoodResource3" parent="Resources" unique_id=1831205832 instance=ExtResource("5_resource")]
 position = Vector2(790, 500)
 
 [node name="SelectionManager" type="Node2D" parent="." unique_id=898392853]
@@ -97,7 +97,7 @@ width = 2.0
 default_color = Color(0.35, 0.78, 1, 0.95)
 antialiased = true
 
-[node name="BuildingManager" type="Node2D" parent="."]
+[node name="BuildingManager" type="Node2D" parent="." unique_id=918392300]
 z_index = 20
 script = ExtResource("4_building")
 
@@ -113,7 +113,7 @@ theme_override_font_sizes/font_size = 18
 theme_override_styles/normal = SubResource("StyleBoxFlat_help")
 text = "左鍵：單選／拖曳框選    右鍵空地：移動    右鍵木頭：採集    B：建造伐木場    建造時左鍵：放置、右鍵／Esc：取消    WASD：移動相機    滾輪：縮放"
 
-[node name="SelectedVillagerPanel" type="PanelContainer" parent="Interface"]
+[node name="SelectedVillagerPanel" type="PanelContainer" parent="Interface" unique_id=144263876]
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
@@ -127,28 +127,28 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_villager_panel")
 script = ExtResource("6_villager_ui")
 selection_manager_path = NodePath("../../SelectionManager")
 
-[node name="Content" type="VBoxContainer" parent="Interface/SelectedVillagerPanel"]
+[node name="Content" type="VBoxContainer" parent="Interface/SelectedVillagerPanel" unique_id=854781811]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="VillagerNameLabel" type="Label" parent="Interface/SelectedVillagerPanel/Content"]
+[node name="VillagerNameLabel" type="Label" parent="Interface/SelectedVillagerPanel/Content" unique_id=331870607]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
 theme_override_font_sizes/font_size = 20
 text = "Villager"
 
-[node name="StateRow" type="HBoxContainer" parent="Interface/SelectedVillagerPanel/Content"]
+[node name="StateRow" type="HBoxContainer" parent="Interface/SelectedVillagerPanel/Content" unique_id=471277639]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="StateLabel" type="Label" parent="Interface/SelectedVillagerPanel/Content/StateRow"]
+[node name="StateLabel" type="Label" parent="Interface/SelectedVillagerPanel/Content/StateRow" unique_id=1617957405]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.72, 0.8, 1)
 theme_override_font_sizes/font_size = 16
 text = "STATE"
 
-[node name="StateValueLabel" type="Label" parent="Interface/SelectedVillagerPanel/Content/StateRow"]
+[node name="StateValueLabel" type="Label" parent="Interface/SelectedVillagerPanel/Content/StateRow" unique_id=1076465308]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -157,17 +157,17 @@ theme_override_font_sizes/font_size = 16
 text = "IDLE"
 horizontal_alignment = 2
 
-[node name="StationaryRow" type="HBoxContainer" parent="Interface/SelectedVillagerPanel/Content"]
+[node name="StationaryRow" type="HBoxContainer" parent="Interface/SelectedVillagerPanel/Content" unique_id=1338428052]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="StationaryLabel" type="Label" parent="Interface/SelectedVillagerPanel/Content/StationaryRow"]
+[node name="StationaryLabel" type="Label" parent="Interface/SelectedVillagerPanel/Content/StationaryRow" unique_id=1372210020]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.72, 0.8, 1)
 theme_override_font_sizes/font_size = 16
 text = "STATIONARY"
 
-[node name="StationaryValueLabel" type="Label" parent="Interface/SelectedVillagerPanel/Content/StationaryRow"]
+[node name="StationaryValueLabel" type="Label" parent="Interface/SelectedVillagerPanel/Content/StationaryRow" unique_id=1399971525]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
