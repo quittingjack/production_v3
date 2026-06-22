@@ -184,6 +184,47 @@ func stop_moving() -> void:
 		_state = WorkState.IDLE
 
 
+func on_interaction_slots_rebuilt(
+	host: InteractionSlotHost,
+	new_slot_index: int
+) -> void:
+	if host == _resource_target:
+		_resource_slot = new_slot_index
+		if new_slot_index < 0:
+			_move_to_resource_approach()
+			return
+		if (
+			_state == WorkState.MOVING_TO_RESOURCE_SLOT
+			or _state == WorkState.GATHERING
+		):
+			_state = WorkState.MOVING_TO_RESOURCE_SLOT
+			_slot_move_timer = slot_move_timeout
+			_set_movement_target(
+				_resource_target.get_interaction_slot_position(
+					_resource_slot
+				)
+			)
+		return
+
+	if host == _building_target:
+		_building_slot = new_slot_index
+		if new_slot_index < 0:
+			_state = WorkState.MOVING_TO_BUILDING_APPROACH
+			_set_movement_target(
+				_building_target.get_approach_position(
+					_approach_direction
+				)
+			)
+			return
+		if _state == WorkState.MOVING_TO_BUILDING_SLOT:
+			_slot_move_timer = slot_move_timeout
+			_set_movement_target(
+				_building_target.get_interaction_slot_position(
+					_building_slot
+				)
+			)
+
+
 func contains_point(world_position: Vector2) -> bool:
 	return (
 		global_position.distance_squared_to(world_position)
@@ -340,8 +381,7 @@ func _is_within_resource_slot_claim_distance() -> bool:
 		return false
 
 	return (
-		global_position.distance_squared_to(_resource_target.global_position)
-		<= _resource_target.approach_clearance * _resource_target.approach_clearance
+		_resource_target.is_within_approach_clearance(global_position)
 	)
 
 

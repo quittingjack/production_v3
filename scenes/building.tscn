@@ -8,6 +8,7 @@ size = Vector2(96, 96)
 [node name="Building" type="Node2D" unique_id=174574568 groups=["buildings"]]
 script = ExtResource("1_building")
 max_storage = 10000
+obstacle_size = Vector2(96, 96)
 
 [node name="Body" type="Polygon2D" parent="." unique_id=142718278]
 color = Color(0.58, 0.34, 0.16, 1)
