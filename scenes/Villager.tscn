@@ -5,12 +5,12 @@
 [ext_resource type="Texture2D" uid="uid://b1frdjwlqnyxq" path="res://assets/selection_highlight.png" id="3_highlight"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_villager"]
-radius = 9.6
+radius = 4.8
 
 [node name="Villager" type="CharacterBody2D" unique_id=1939594127 groups=["villagers"]]
 collision_mask = 3
 script = ExtResource("1_script")
-backpack_capacity = 200
+backpack_capacity = 20
 avoidance_neighbor_distance = 90.0
 size_scale = 0.3
 
@@ -45,12 +45,11 @@ shape = SubResource("CircleShape2D_villager")
 [node name="NavigationAgent2D" type="NavigationAgent2D" parent="." unique_id=554707852]
 path_desired_distance = 8.0
 target_desired_distance = 4.0
-avoidance_enabled = true
-radius = 9.6
+radius = 4.8
 neighbor_distance = 90.0
 max_neighbors = 8
 time_horizon_agents = 0.25
 max_speed = 220.0
 
 [node name="NavigationObstacle2D" type="NavigationObstacle2D" parent="." unique_id=749458035]
-radius = 9.6
+radius = 4.8

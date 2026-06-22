@@ -8,6 +8,9 @@ size = Vector2(64, 64)
 [node name="WoodResource" type="Node2D" unique_id=213156922 groups=["resources"]]
 script = ExtResource("1_resource")
 resource_amount = 20000
+obstacle_size = Vector2(16, 16)
+interaction_slot_clearance = 4.0
+interaction_slot_spacing = 32.0
 debug_draw_interaction_slots = true
 
 [node name="Trunk" type="Polygon2D" parent="." unique_id=449471167]

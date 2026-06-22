@@ -1,13 +1,6 @@
 class_name InteractionSlotHost
 extends Node2D
 
-const AVAILABLE_SLOT_COLOR := Color(0.25, 0.95, 0.4, 0.95)
-const OCCUPIED_SLOT_COLOR := Color(1.0, 0.62, 0.18, 0.95)
-const BLOCKED_SLOT_COLOR := Color(1.0, 0.25, 0.25, 0.95)
-const OBSTACLE_COLOR := Color(0.35, 0.7, 1.0, 0.85)
-const INTERACTION_PERIMETER_COLOR := Color(0.3, 1.0, 0.75, 0.65)
-const APPROACH_PERIMETER_COLOR := Color(0.85, 0.45, 1.0, 0.65)
-
 @export var obstacle_size := Vector2(64.0, 64.0):
 	set(value):
 		obstacle_size = Vector2(maxf(value.x, 1.0), maxf(value.y, 1.0))
@@ -37,6 +30,14 @@ const APPROACH_PERIMETER_COLOR := Color(0.85, 0.45, 1.0, 0.65)
 	set(value):
 		debug_draw_interaction_slots = value
 		_request_debug_redraw()
+
+@export_group("Debug Color")
+@export var available_slot_color: Color = Color(0.25, 0.95, 0.4, 0.95)
+@export var occupied_slot_color: Color = Color(1.0, 0.62, 0.18, 0.95)
+@export var blocked_slot_color: Color = Color(1.0, 0.25, 0.25, 0.95)
+@export var obstacle_color: Color = Color(0.35, 0.7, 1.0, 0.85)
+@export var interaction_perimeter_color: Color = Color(0.3, 1.0, 0.75, 0.65)
+@export var approach_perimeter_color: Color = Color(0.85, 0.45, 1.0, 0.65)
 
 var _interaction_slot_positions: Array[Vector2] = []
 var _interaction_slot_occupants: Array[Node] = []
@@ -342,15 +343,15 @@ func _draw() -> void:
 	if not debug_draw_interaction_slots:
 		return
 
-	_draw_rectangle_outline(obstacle_size * 0.5, OBSTACLE_COLOR, 2.0)
+	_draw_rectangle_outline(obstacle_size * 0.5, obstacle_color, 2.0)
 	_draw_rectangle_outline(
 		obstacle_size * 0.5 + Vector2.ONE * interaction_clearance,
-		INTERACTION_PERIMETER_COLOR,
+		interaction_perimeter_color,
 		2.0
 	)
 	_draw_rectangle_outline(
 		obstacle_size * 0.5 + Vector2.ONE * approach_clearance,
-		APPROACH_PERIMETER_COLOR,
+		approach_perimeter_color,
 		2.0
 	)
 
@@ -358,19 +359,19 @@ func _draw() -> void:
 		draw_circle(
 			to_local(get_approach_position_by_direction(direction_index)),
 			5.0,
-			APPROACH_PERIMETER_COLOR
+			approach_perimeter_color
 		)
 
 	var font := ThemeDB.fallback_font
 	for slot_index in _interaction_slot_positions.size():
-		var slot_color := AVAILABLE_SLOT_COLOR
+		var slot_color := available_slot_color
 		if is_instance_valid(_interaction_slot_occupants[slot_index]):
-			slot_color = OCCUPIED_SLOT_COLOR
+			slot_color = occupied_slot_color
 		elif not _is_interaction_slot_clear(
 			get_interaction_slot_position(slot_index),
 			null
 		):
-			slot_color = BLOCKED_SLOT_COLOR
+			slot_color = blocked_slot_color
 
 		var slot_position := _interaction_slot_positions[slot_index]
 		draw_circle(slot_position, 6.0, slot_color)
