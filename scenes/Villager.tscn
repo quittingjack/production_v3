@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://b2oy2v1vj5kc2"]
+[gd_scene format=3 uid="uid://c52qve73gm2mg"]
 
 [ext_resource type="Script" uid="uid://dnfc21w5lejo2" path="res://scripts/villager.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://cxdxackju2o68" path="res://assets/villager.png" id="2_villager"]

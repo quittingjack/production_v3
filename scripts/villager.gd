@@ -61,7 +61,6 @@ var _action_timer := 0.0
 var _slot_move_timer := 0.0
 var _resource_slot := -1
 var _building_slot := -1
-var _approach_direction := 0
 var _selection_radius := BASE_SELECTION_RADIUS
 var _is_navigation_stationary := true
 
@@ -72,7 +71,6 @@ func _enter_tree() -> void:
 
 func _ready() -> void:
 	_apply_size_settings()
-	_approach_direction = int(get_instance_id() % 4)
 	navigation_agent.max_speed = move_speed
 	navigation_agent.neighbor_distance = avoidance_neighbor_distance
 	navigation_agent.max_neighbors = avoidance_max_neighbors
@@ -210,11 +208,7 @@ func on_interaction_slots_rebuilt(
 		_building_slot = new_slot_index
 		if new_slot_index < 0:
 			_state = WorkState.MOVING_TO_BUILDING_APPROACH
-			_set_movement_target(
-				_building_target.get_approach_position(
-					_approach_direction
-				)
-			)
+			_update_building_approach_target()
 			return
 		if _state == WorkState.MOVING_TO_BUILDING_SLOT:
 			_slot_move_timer = slot_move_timeout
@@ -285,6 +279,15 @@ func _update_work(delta: float) -> void:
 			_action_timer -= delta
 			if _action_timer <= 0.0:
 				_find_and_move_to_building()
+		WorkState.MOVING_TO_BUILDING_APPROACH:
+			if not _is_building_usable(_building_target):
+				_release_building_slot()
+				_find_and_move_to_building()
+				return
+			if _is_within_building_slot_claim_distance():
+				_try_reserve_building_slot()
+				return
+			_update_building_approach_target()
 		WorkState.WAITING_FOR_BUILDING_SLOT:
 			if not _is_building_usable(_building_target):
 				_release_building_slot()
@@ -318,7 +321,13 @@ func _arrive_at_target() -> void:
 			else:
 				_handle_resource_unavailable()
 		WorkState.MOVING_TO_BUILDING_APPROACH:
-			_try_reserve_building_slot()
+			if not _is_building_usable(_building_target):
+				_release_building_slot()
+				_find_and_move_to_building()
+			elif _is_within_building_slot_claim_distance():
+				_try_reserve_building_slot()
+			else:
+				_update_building_approach_target()
 		WorkState.MOVING_TO_BUILDING_SLOT:
 			if _is_building_usable(_building_target) and _building_slot >= 0:
 				_attempt_deposit()
@@ -368,7 +377,7 @@ func _update_resource_approach_target() -> void:
 	if not _is_resource_available(_resource_target):
 		return
 
-	var approach_target := _resource_target.get_approach_position(global_position)
+	var approach_target := _resource_target.global_position
 	if (
 		not _has_target
 		or _target_position.distance_squared_to(approach_target) > 1.0
@@ -382,6 +391,27 @@ func _is_within_resource_slot_claim_distance() -> bool:
 
 	return (
 		_resource_target.is_within_approach_clearance(global_position)
+	)
+
+
+func _update_building_approach_target() -> void:
+	if not _is_building_usable(_building_target):
+		return
+
+	var approach_target := _building_target.global_position
+	if (
+		not _has_target
+		or _target_position.distance_squared_to(approach_target) > 1.0
+	):
+		_set_movement_target(approach_target)
+
+
+func _is_within_building_slot_claim_distance() -> bool:
+	if not _is_building_usable(_building_target):
+		return false
+
+	return (
+		_building_target.is_within_approach_clearance(global_position)
 	)
 
 
@@ -524,9 +554,7 @@ func _find_and_move_to_building(excluded_building: Building = null) -> void:
 	_release_building_slot()
 	_building_target = target
 	_state = WorkState.MOVING_TO_BUILDING_APPROACH
-	_set_movement_target(
-		target.get_approach_position(_approach_direction)
-	)
+	_update_building_approach_target()
 
 
 func _try_reserve_building_slot() -> void:
@@ -546,9 +574,7 @@ func _try_reserve_building_slot() -> void:
 			_release_building_slot()
 			_building_target = alternative
 			_state = WorkState.MOVING_TO_BUILDING_APPROACH
-			_set_movement_target(
-				alternative.get_approach_position(_approach_direction)
-			)
+			_update_building_approach_target()
 			return
 		_state = WorkState.WAITING_FOR_BUILDING_SLOT
 		_action_timer = retry_interval
@@ -593,15 +619,11 @@ func _recover_from_building_slot_stall() -> void:
 	if alternative:
 		_building_target = alternative
 		_state = WorkState.MOVING_TO_BUILDING_APPROACH
-		_set_movement_target(
-			alternative.get_approach_position(_approach_direction)
-		)
+		_update_building_approach_target()
 	elif _is_building_usable(blocked_building):
 		_building_target = blocked_building
 		_state = WorkState.MOVING_TO_BUILDING_APPROACH
-		_set_movement_target(
-			blocked_building.get_approach_position(_approach_direction)
-		)
+		_update_building_approach_target()
 	else:
 		_find_and_move_to_building()
 
