@@ -1,40 +1,41 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://b5hhy33p3wevv"]
 
-[ext_resource type="Script" path="res://scripts/factory.gd" id="1_factory"]
+[ext_resource type="Script" uid="uid://bmr2ajvii77sw" path="res://scripts/factory.gd" id="1_factory"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_factory"]
 size = Vector2(128, 96)
 
-[node name="Factory" type="Node2D" groups=["buildings"]]
+[node name="Factory" type="Node2D" unique_id=1552686215 groups=["buildings"]]
 script = ExtResource("1_factory")
+construction_material_amount = 5
 obstacle_size = Vector2(64, 48)
 interaction_range_multiplier = 2.0
 interaction_slot_clearance = 4.0
 interaction_slot_spacing = 24.0
 
-[node name="Body" type="Polygon2D" parent="."]
+[node name="Body" type="Polygon2D" parent="." unique_id=399096600]
 color = Color(0.32, 0.38, 0.42, 1)
 polygon = PackedVector2Array(-64, -48, 64, -48, 64, 48, -64, 48)
 
-[node name="Roof" type="Polygon2D" parent="."]
+[node name="Roof" type="Polygon2D" parent="." unique_id=1959159305]
 z_index = 1
 color = Color(0.5, 0.56, 0.6, 1)
 polygon = PackedVector2Array(-58, -42, 58, -42, 58, -18, -58, -18)
 
-[node name="Door" type="Polygon2D" parent="."]
+[node name="Door" type="Polygon2D" parent="." unique_id=27732055]
 z_index = 1
 color = Color(0.13, 0.16, 0.18, 1)
 polygon = PackedVector2Array(-14, 12, 14, 12, 14, 48, -14, 48)
 
-[node name="Chimney" type="Polygon2D" parent="."]
+[node name="Chimney" type="Polygon2D" parent="." unique_id=1443927026]
 z_index = 1
 color = Color(0.25, 0.2, 0.18, 1)
 polygon = PackedVector2Array(32, -72, 50, -72, 50, -30, 32, -30)
 
-[node name="StorageLabel" type="Label" parent="."]
+[node name="StorageLabel" type="Label" parent="." unique_id=289223674]
 visible = false
 
-[node name="InputLabel" type="Label" parent="."]
+[node name="InputLabel" type="Label" parent="." unique_id=1639349442]
 z_index = 2
 offset_left = -76.0
 offset_top = -106.0
@@ -48,7 +49,7 @@ theme_override_font_sizes/font_size = 16
 text = "木頭：0/20"
 horizontal_alignment = 1
 
-[node name="OutputLabel" type="Label" parent="."]
+[node name="OutputLabel" type="Label" parent="." unique_id=165407884]
 z_index = 2
 offset_left = -76.0
 offset_top = -84.0
@@ -62,7 +63,7 @@ theme_override_font_sizes/font_size = 16
 text = "木材：0/10"
 horizontal_alignment = 1
 
-[node name="StatusLabel" type="Label" parent="."]
+[node name="StatusLabel" type="Label" parent="." unique_id=324615007]
 z_index = 2
 offset_left = -76.0
 offset_top = 58.0
@@ -76,8 +77,8 @@ theme_override_font_sizes/font_size = 15
 text = "等待木頭"
 horizontal_alignment = 1
 
-[node name="StaticBody2D" type="StaticBody2D" parent="."]
+[node name="StaticBody2D" type="StaticBody2D" parent="." unique_id=482056805]
 collision_layer = 2
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D" unique_id=43174186]
 shape = SubResource("RectangleShape2D_factory")
