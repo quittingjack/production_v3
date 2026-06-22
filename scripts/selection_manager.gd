@@ -7,6 +7,7 @@ extends Node2D
 @onready var selection_border: Line2D = $SelectionBorder
 @onready var haul_route_preview: Line2D = $HaulRoutePreview
 @onready var haul_planning_label: Label = $"../Interface/HaulPlanningLabel"
+@onready var haul_amount_cursor_label: Label = $"../Interface/HaulAmountCursorLabel"
 
 var _selected_villagers: Array[Villager] = []
 var _left_button_down := false
@@ -21,6 +22,7 @@ var _haul_source: Building
 var _haul_waypoints: Array[Vector2] = []
 var _haul_amount_per_trip := 1
 var _haul_max_amount := 1
+const HAUL_CURSOR_LABEL_OFFSET := Vector2(16.0, 20.0)
 
 
 func _ready() -> void:
@@ -28,12 +30,15 @@ func _ready() -> void:
 	_set_selection_box_visible(false)
 	haul_route_preview.visible = false
 	haul_planning_label.visible = false
+	haul_amount_cursor_label.visible = false
 
 
 func _process(_delta: float) -> void:
+	var mouse_position := get_viewport().get_mouse_position()
 	var world_position := _screen_to_world(get_viewport().get_mouse_position())
 	if _is_haul_planning:
 		_update_haul_preview(world_position)
+		_update_haul_amount_cursor_label(mouse_position)
 		_set_hovered_interaction_host(_find_building_at(world_position))
 		return
 
@@ -42,6 +47,20 @@ func _process(_delta: float) -> void:
 		return
 
 	_update_hovered_interaction_host(world_position)
+
+
+func _input(event: InputEvent) -> void:
+	if not _is_haul_planning:
+		return
+
+	if (
+		event is InputEventKey
+		and event.pressed
+		and not event.echo
+		and event.keycode == KEY_ESCAPE
+	):
+		_cancel_haul_planning()
+		get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -94,6 +113,7 @@ func begin_haul_planning() -> void:
 	if _haul_villagers.is_empty():
 		return
 
+	get_viewport().gui_release_focus()
 	_is_haul_planning = true
 	_haul_source = null
 	_haul_waypoints.clear()
@@ -101,7 +121,9 @@ func begin_haul_planning() -> void:
 	haul_route_preview.clear_points()
 	haul_route_preview.visible = true
 	haul_planning_label.visible = true
+	haul_amount_cursor_label.visible = true
 	_update_haul_planning_label()
+	_update_haul_amount_cursor_label(get_viewport().get_mouse_position())
 	_set_hovered_interaction_host(null)
 
 
@@ -127,14 +149,6 @@ func get_single_selected_villager() -> Villager:
 func _handle_haul_planning_input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		var key_event := event as InputEventKey
-		if (
-			key_event.pressed
-			and not key_event.echo
-			and key_event.keycode == KEY_ESCAPE
-		):
-			_cancel_haul_planning()
-			get_viewport().set_input_as_handled()
-			return
 		if (
 			key_event.pressed
 			and not key_event.echo
@@ -220,6 +234,7 @@ func _cancel_haul_planning() -> void:
 	haul_route_preview.clear_points()
 	haul_route_preview.visible = false
 	haul_planning_label.visible = false
+	haul_amount_cursor_label.visible = false
 	_set_hovered_interaction_host(null)
 
 
@@ -248,6 +263,29 @@ func _update_haul_planning_label() -> void:
 		+ "左鍵空地新增中間點，左鍵相容建築完成\n"
 		+ "右鍵撤銷中間點　Esc 取消"
 	) % [
+		String(_haul_source.get_output_resource_type()),
+		_haul_amount_per_trip,
+	]
+	_update_haul_amount_cursor_text()
+
+
+func _update_haul_amount_cursor_label(mouse_position: Vector2) -> void:
+	if not _is_haul_planning:
+		return
+
+	haul_amount_cursor_label.position = mouse_position + HAUL_CURSOR_LABEL_OFFSET
+	_update_haul_amount_cursor_text()
+
+
+func _update_haul_amount_cursor_text() -> void:
+	if not _is_haul_planning:
+		return
+
+	if not is_instance_valid(_haul_source):
+		haul_amount_cursor_label.text = "x%d/人" % _haul_amount_per_trip
+		return
+
+	haul_amount_cursor_label.text = "%s x%d" % [
 		String(_haul_source.get_output_resource_type()),
 		_haul_amount_per_trip,
 	]
