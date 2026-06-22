@@ -485,7 +485,10 @@ func _command_selection_at(world_position: Vector2) -> void:
 	if building:
 		for villager in _selected_villagers:
 			if is_instance_valid(villager):
-				villager.move_to(building.global_position)
+				if building is ConstructionSite:
+					villager.construct_at(building as ConstructionSite)
+				else:
+					villager.move_to(building.global_position)
 		return
 
 	_move_selection_to(world_position)

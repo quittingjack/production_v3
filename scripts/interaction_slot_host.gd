@@ -103,7 +103,11 @@ func has_available_interaction_slot(occupant: Node = null) -> bool:
 	return false
 
 
-func reserve_interaction_slot(occupant: Node, from_position: Vector2) -> int:
+func reserve_interaction_slot(
+	occupant: Node,
+	from_position: Vector2,
+	minimum_empty_slots := 0
+) -> int:
 	if not is_instance_valid(occupant):
 		return -1
 
@@ -111,6 +115,18 @@ func reserve_interaction_slot(occupant: Node, from_position: Vector2) -> int:
 	for slot_index in _interaction_slot_occupants.size():
 		if _interaction_slot_occupants[slot_index] == occupant:
 			return slot_index
+
+	var available_slot_count := 0
+	for slot_index in _interaction_slot_occupants.size():
+		if is_instance_valid(_interaction_slot_occupants[slot_index]):
+			continue
+		if _is_interaction_slot_clear(
+			get_interaction_slot_position(slot_index),
+			occupant
+		):
+			available_slot_count += 1
+	if available_slot_count <= maxi(minimum_empty_slots, 0):
+		return -1
 
 	var nearest_slot := -1
 	var nearest_distance := INF

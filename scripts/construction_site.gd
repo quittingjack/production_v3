@@ -13,6 +13,8 @@ signal construction_completed(
 var target_scene: PackedScene
 var _is_constructing := false
 var _construction_time_left := 0.0
+var _assigned_builders: Array[Villager] = []
+var _active_builders: Array[Villager] = []
 
 
 func initialize(
@@ -39,17 +41,25 @@ func _ready() -> void:
 	super._ready()
 	_apply_site_size(obstacle_size)
 	set_process(true)
-	_try_start_construction()
+	_update_storage_label()
 
 
 func _process(delta: float) -> void:
+	_cleanup_builders()
+	_try_start_construction()
 	if not _is_constructing:
+		_update_storage_label()
 		return
 
-	_construction_time_left = maxf(_construction_time_left - delta, 0.0)
+	if not _active_builders.is_empty():
+		_construction_time_left = maxf(
+			_construction_time_left - delta * _active_builders.size(),
+			0.0
+		)
 	_update_storage_label()
 	if _construction_time_left <= 0.0:
 		set_process(false)
+		_finish_builders()
 		construction_completed.emit(self, target_scene)
 
 
@@ -62,6 +72,7 @@ func store_resource(type: StringName, amount: int) -> int:
 		return 0
 	var stored := super.store_resource(type, amount)
 	_try_start_construction()
+	_update_storage_label()
 	return stored
 
 
@@ -88,8 +99,50 @@ func get_construction_progress() -> float:
 	return clampf(1.0 - _construction_time_left / duration, 0.0, 1.0)
 
 
+func assign_builder(builder: Villager) -> void:
+	if (
+		not is_instance_valid(builder)
+		or _is_constructing and _construction_time_left <= 0.0
+		or _assigned_builders.has(builder)
+	):
+		return
+	_assigned_builders.append(builder)
+	_update_storage_label()
+
+
+func remove_builder(builder: Villager) -> void:
+	_assigned_builders.erase(builder)
+	_active_builders.erase(builder)
+	_update_storage_label()
+
+
+func set_builder_active(builder: Villager, active: bool) -> void:
+	if not _assigned_builders.has(builder):
+		return
+	if active:
+		if not _active_builders.has(builder):
+			_active_builders.append(builder)
+	else:
+		_active_builders.erase(builder)
+	_try_start_construction()
+	_update_storage_label()
+
+
+func get_active_builder_count() -> int:
+	_cleanup_builders()
+	return _active_builders.size()
+
+
+func is_material_ready() -> bool:
+	return _is_constructing or stored_amount >= max_storage
+
+
 func _try_start_construction() -> void:
-	if _is_constructing or stored_amount < max_storage:
+	if (
+		_is_constructing
+		or not is_material_ready()
+		or _active_builders.is_empty()
+	):
 		return
 
 	stored_amount = 0
@@ -103,7 +156,30 @@ func _try_start_construction() -> void:
 
 func _complete_immediately() -> void:
 	if _is_constructing and is_inside_tree():
+		_finish_builders()
 		construction_completed.emit(self, target_scene)
+
+
+func _cleanup_builders() -> void:
+	for index in range(_assigned_builders.size() - 1, -1, -1):
+		if not is_instance_valid(_assigned_builders[index]):
+			_assigned_builders.remove_at(index)
+	for index in range(_active_builders.size() - 1, -1, -1):
+		var builder := _active_builders[index]
+		if (
+			not is_instance_valid(builder)
+			or not _assigned_builders.has(builder)
+		):
+			_active_builders.remove_at(index)
+
+
+func _finish_builders() -> void:
+	var builders := _assigned_builders.duplicate()
+	_assigned_builders.clear()
+	_active_builders.clear()
+	for builder in builders:
+		if is_instance_valid(builder):
+			builder.on_construction_site_completed(self)
 
 
 func _apply_site_size(building_size: Vector2) -> void:
@@ -134,4 +210,9 @@ func _update_storage_label() -> void:
 		]
 		status_label.visible = true
 		construction_progress_bar.visible = false
-		status_label.text = "等待建材"
+		if is_material_ready():
+			status_label.text = "等待工人"
+		elif _assigned_builders.is_empty():
+			status_label.text = "等待建材"
+		else:
+			status_label.text = "等待建材（已派工）"

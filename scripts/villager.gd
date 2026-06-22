@@ -33,6 +33,10 @@ enum WorkState {
 	HAUL_WAITING_FOR_DESTINATION,
 	HAUL_MOVING_TO_DESTINATION_SLOT,
 	HAUL_MOVING_RETURN,
+	CONSTRUCTION_MOVING_TO_APPROACH,
+	CONSTRUCTION_WAITING_FOR_SLOT,
+	CONSTRUCTION_MOVING_TO_SLOT,
+	CONSTRUCTING,
 }
 
 @export var move_speed := 220.0
@@ -78,6 +82,8 @@ var _total_haul_job: TotalHaulJob
 var _haul_route_index := 0
 var _haul_slot_host: Building
 var _haul_slot := -1
+var _construction_target: ConstructionSite
+var _construction_slot := -1
 var _selection_radius := BASE_SELECTION_RADIUS
 var _is_navigation_stationary := true
 
@@ -98,6 +104,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	_cancel_construction_job()
 	_cancel_haul_job()
 	_release_all_slots()
 
@@ -149,6 +156,7 @@ func is_stationary() -> bool:
 
 
 func move_to(world_position: Vector2) -> void:
+	_cancel_construction_job()
 	_cancel_haul_job()
 	_release_all_slots()
 	_resource_target = null
@@ -163,6 +171,7 @@ func gather_from(resource_node: ResourceNode) -> void:
 	if not is_instance_valid(resource_node):
 		return
 
+	_cancel_construction_job()
 	_cancel_haul_job()
 	if _backpack_amount > 0 and _backpack_resource_type != resource_node.resource_type:
 		_clear_backpack()
@@ -197,6 +206,7 @@ func start_haul_job(
 	if resource_type == &"" or not destination.accepts_resource(resource_type):
 		return
 
+	_cancel_construction_job()
 	_cancel_haul_job()
 	_release_all_slots()
 	_resource_target = null
@@ -227,6 +237,7 @@ func start_total_haul_job(
 	if not job or not job.is_valid():
 		return
 
+	_cancel_construction_job()
 	_cancel_haul_job()
 	_release_all_slots()
 	_resource_target = null
@@ -254,6 +265,22 @@ func start_total_haul_job(
 		return
 
 	_begin_haul_source_approach()
+
+
+func construct_at(site: ConstructionSite) -> void:
+	if not _is_construction_site_valid(site):
+		return
+
+	_cancel_construction_job()
+	_cancel_haul_job()
+	_release_all_slots()
+	_resource_target = null
+	_building_target = null
+	_work_resource_type = &""
+	_construction_target = site
+	_action_timer = 0.0
+	site.assign_builder(self)
+	_begin_construction_approach()
 
 
 func _set_movement_target(world_position: Vector2) -> void:
@@ -328,6 +355,25 @@ func on_interaction_slots_rebuilt(
 			_set_movement_target(
 				_building_target.get_interaction_slot_position(
 					_building_slot
+				)
+			)
+		return
+
+	if host == _construction_target:
+		_construction_target.set_builder_active(self, false)
+		_construction_slot = new_slot_index
+		if new_slot_index < 0:
+			_begin_construction_approach()
+			return
+		if (
+			_state == WorkState.CONSTRUCTION_MOVING_TO_SLOT
+			or _state == WorkState.CONSTRUCTING
+		):
+			_state = WorkState.CONSTRUCTION_MOVING_TO_SLOT
+			_slot_move_timer = slot_move_timeout
+			_set_movement_target(
+				_construction_target.get_interaction_slot_position(
+					_construction_slot
 				)
 			)
 
@@ -450,6 +496,26 @@ func _update_work(delta: float) -> void:
 			if _slot_move_timer <= 0.0:
 				_release_haul_slot()
 				_begin_haul_destination_approach()
+		WorkState.CONSTRUCTION_MOVING_TO_APPROACH:
+			_update_construction_approach()
+		WorkState.CONSTRUCTION_WAITING_FOR_SLOT:
+			if not _is_construction_site_valid(_construction_target):
+				_end_construction_job()
+				return
+			_action_timer -= delta
+			if _action_timer <= 0.0:
+				_begin_construction_approach()
+		WorkState.CONSTRUCTION_MOVING_TO_SLOT:
+			if not _is_construction_site_valid(_construction_target):
+				_end_construction_job()
+				return
+			_slot_move_timer -= delta
+			if _slot_move_timer <= 0.0:
+				_release_construction_slot()
+				_begin_construction_approach()
+		WorkState.CONSTRUCTING:
+			if not _is_construction_site_valid(_construction_target):
+				_end_construction_job()
 
 
 func _arrive_at_target() -> void:
@@ -502,6 +568,17 @@ func _arrive_at_target() -> void:
 				_end_haul_job()
 		WorkState.HAUL_MOVING_RETURN:
 			_advance_haul_return()
+		WorkState.CONSTRUCTION_MOVING_TO_APPROACH:
+			_update_construction_approach()
+		WorkState.CONSTRUCTION_MOVING_TO_SLOT:
+			if (
+				_is_construction_site_valid(_construction_target)
+				and _construction_slot >= 0
+			):
+				_state = WorkState.CONSTRUCTING
+				_construction_target.set_builder_active(self, true)
+			else:
+				_end_construction_job()
 
 	_set_navigation_stationary(not _has_target)
 
@@ -852,6 +929,84 @@ func _is_building_usable(building) -> bool:
 	)
 
 
+func _begin_construction_approach() -> void:
+	_release_construction_slot()
+	if not _is_construction_site_valid(_construction_target):
+		_end_construction_job()
+		return
+	_state = WorkState.CONSTRUCTION_MOVING_TO_APPROACH
+	_update_construction_approach()
+
+
+func _update_construction_approach() -> void:
+	if not _is_construction_site_valid(_construction_target):
+		_end_construction_job()
+		return
+	if _construction_target.is_within_approach_clearance(global_position):
+		_try_reserve_construction_slot()
+		return
+	var approach_target := _construction_target.global_position
+	if (
+		not _has_target
+		or _target_position.distance_squared_to(approach_target) > 1.0
+	):
+		_set_movement_target(approach_target)
+
+
+func _try_reserve_construction_slot() -> void:
+	if not _is_construction_site_valid(_construction_target):
+		_end_construction_job()
+		return
+	var minimum_empty_slots := (
+		0 if _construction_target.is_material_ready() else 1
+	)
+	var slot := _construction_target.reserve_interaction_slot(
+		self,
+		global_position,
+		minimum_empty_slots
+	)
+	if slot < 0:
+		_state = WorkState.CONSTRUCTION_WAITING_FOR_SLOT
+		_action_timer = retry_interval
+		_stop_at_current_position()
+		return
+	_construction_slot = slot
+	_slot_move_timer = slot_move_timeout
+	_state = WorkState.CONSTRUCTION_MOVING_TO_SLOT
+	_set_movement_target(
+		_construction_target.get_interaction_slot_position(slot)
+	)
+
+
+func _is_construction_site_valid(site) -> bool:
+	return (
+		is_instance_valid(site)
+		and not site.is_queued_for_deletion()
+	)
+
+
+func _cancel_construction_job() -> void:
+	if is_instance_valid(_construction_target):
+		_construction_target.remove_builder(self)
+	_release_construction_slot()
+	_construction_target = null
+
+
+func _end_construction_job() -> void:
+	_cancel_construction_job()
+	_state = WorkState.IDLE
+	_stop_at_current_position()
+
+
+func on_construction_site_completed(site: ConstructionSite) -> void:
+	if site != _construction_target:
+		return
+	_release_construction_slot()
+	_construction_target = null
+	_state = WorkState.IDLE
+	_stop_at_current_position()
+
+
 func _begin_haul_source_approach() -> void:
 	_release_haul_slot()
 	if not _is_haul_job_valid():
@@ -1109,6 +1264,7 @@ func _release_all_slots() -> void:
 	_release_resource_slot()
 	_release_building_slot()
 	_release_haul_slot()
+	_release_construction_slot()
 
 
 func _release_resource_slot() -> void:
@@ -1128,6 +1284,14 @@ func _release_haul_slot() -> void:
 		_haul_slot_host.release_interaction_slot(self)
 	_haul_slot_host = null
 	_haul_slot = -1
+
+
+func _release_construction_slot() -> void:
+	if is_instance_valid(_construction_target):
+		_construction_target.set_builder_active(self, false)
+		if _construction_slot >= 0:
+			_construction_target.release_interaction_slot(self)
+	_construction_slot = -1
 
 
 func _stop_at_current_position() -> void:

@@ -49,6 +49,10 @@ func _run_test() -> void:
 		quit(1)
 		return
 
+	var builders: Array[Villager] = [
+		main.get_node("Villagers/Villager1") as Villager,
+		main.get_node("Villagers/Villager2") as Villager,
+	]
 	for index in 2:
 		var site := site_scene.instantiate() as ConstructionSite
 		site.position = Vector2(-400.0 + index * 128.0, 600.0)
@@ -58,6 +62,8 @@ func _run_test() -> void:
 		)
 		buildings.add_child(site)
 		site.store_resource(&"wood", 10)
+		builders[index].construct_at(site)
+		site.set_builder_active(builders[index], true)
 
 	await create_timer(0.2).timeout
 
@@ -71,7 +77,11 @@ func _run_test() -> void:
 	var spawned_positions: Array[Vector2] = []
 	for node in villagers:
 		var villager := node as Villager
-		if villager and villager.global_position.y >= spawn_origin.y:
+		if (
+			villager
+			and villager not in builders
+			and villager.global_position.y >= spawn_origin.y
+		):
 			spawned_positions.append(villager.global_position)
 	if spawned_positions.size() != 2:
 		push_error("Expected 2 immigrants beside the town center.")

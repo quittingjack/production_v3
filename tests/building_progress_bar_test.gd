@@ -11,6 +11,7 @@ func _run_test() -> void:
 		"res://scenes/construction_site.tscn"
 	) as PackedScene
 	var house_scene := load("res://scenes/house.tscn") as PackedScene
+	var villager_scene := load("res://scenes/villager.tscn") as PackedScene
 
 	var factory := factory_scene.instantiate() as Factory
 	factory.production_duration = 0.4
@@ -53,6 +54,13 @@ func _run_test() -> void:
 		return
 
 	site.store_resource(&"wood", 2)
+	if site_status.text != "等待工人" or construction_progress.visible:
+		_fail("A supplied site must wait for a builder.")
+		return
+	var builder := villager_scene.instantiate() as Villager
+	root.add_child(builder)
+	builder.construct_at(site)
+	site.set_builder_active(builder, true)
 	var construction_start_progress := construction_progress.value
 	if site_status.visible or not construction_progress.visible:
 		_fail("Construction progress bar must replace status text during construction.")
