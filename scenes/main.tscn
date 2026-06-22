@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" uid="uid://b446t2rotidpl" path="res://scenes/wood_resource.tscn" id="5_resource"]
 [ext_resource type="Script" uid="uid://he8omt5eoimf" path="res://scripts/selected_villager_ui.gd" id="6_villager_ui"]
 [ext_resource type="Script" path="res://scripts/immigration_manager.gd" id="7_immigration"]
+[ext_resource type="PackedScene" path="res://scenes/town_center.tscn" id="8_town_center"]
 
 [sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_sugp2"]
 
@@ -89,6 +90,9 @@ position = Vector2(620, 350)
 
 [node name="Buildings" type="Node2D" parent="." unique_id=1391473100]
 
+[node name="TownCenter" parent="Buildings" instance=ExtResource("8_town_center")]
+position = Vector2(480, 520)
+
 [node name="Resources" type="Node2D" parent="." unique_id=2025530553]
 
 [node name="WoodResource1" parent="Resources" unique_id=753469752 instance=ExtResource("5_resource")]
@@ -132,6 +136,7 @@ script = ExtResource("7_immigration")
 villager_scene = ExtResource("1_0wfyh")
 villagers_path = NodePath("../Villagers")
 building_manager_path = NodePath("../BuildingManager")
+town_center_path = NodePath("../Buildings/TownCenter")
 notification_label_path = NodePath("../Interface/ImmigrationNotification")
 
 [node name="Interface" type="CanvasLayer" parent="." unique_id=1838611413]

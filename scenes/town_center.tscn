@@ -1,0 +1,53 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/town_center.gd" id="1_town_center"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_town_center"]
+size = Vector2(192, 128)
+
+[node name="TownCenter" type="Node2D" groups=["buildings", "town_centers"]]
+script = ExtResource("1_town_center")
+
+[node name="Body" type="Polygon2D" parent="."]
+color = Color(0.56, 0.4, 0.24, 1)
+polygon = PackedVector2Array(-96, -48, 96, -48, 96, 64, -96, 64)
+
+[node name="Roof" type="Polygon2D" parent="."]
+z_index = 1
+color = Color(0.72, 0.24, 0.16, 1)
+polygon = PackedVector2Array(-108, -48, 0, -88, 108, -48)
+
+[node name="Door" type="Polygon2D" parent="."]
+z_index = 1
+color = Color(0.22, 0.13, 0.08, 1)
+polygon = PackedVector2Array(-16, 12, 16, 12, 16, 64, -16, 64)
+
+[node name="WindowLeft" type="Polygon2D" parent="."]
+z_index = 1
+color = Color(0.54, 0.82, 0.92, 1)
+polygon = PackedVector2Array(-68, -12, -38, -12, -38, 18, -68, 18)
+
+[node name="WindowRight" type="Polygon2D" parent="."]
+z_index = 1
+color = Color(0.54, 0.82, 0.92, 1)
+polygon = PackedVector2Array(38, -12, 68, -12, 68, 18, 38, 18)
+
+[node name="TitleLabel" type="Label" parent="."]
+z_index = 2
+offset_left = -96.0
+offset_top = -120.0
+offset_right = 96.0
+offset_bottom = -92.0
+theme_override_colors/font_color = Color(1, 0.92, 0.7, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 20
+text = "城鎮中心"
+horizontal_alignment = 1
+
+[node name="StaticBody2D" type="StaticBody2D" parent="."]
+collision_layer = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+shape = SubResource("RectangleShape2D_town_center")

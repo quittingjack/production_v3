@@ -4,22 +4,26 @@ extends Node
 @export var immigration_interval := 60.0
 @export var minimum_immigrants := 1
 @export var maximum_immigrants := 5
-@export var entrance_position := Vector2(-1280.0, 320.0)
 @export var spawn_spacing := 48.0
 @export var confirmation_duration := 3.0
 @export var villager_scene: PackedScene
 @export var villagers_path: NodePath
 @export var building_manager_path: NodePath
+@export var town_center_path: NodePath
 @export var notification_label_path: NodePath
 
 @onready var villagers: Node2D = get_node(villagers_path)
 @onready var building_manager: Node = get_node(building_manager_path)
+@onready var town_center: TownCenter = get_node_or_null(
+	town_center_path
+) as TownCenter
 @onready var notification_label: Label = get_node(notification_label_path)
 
 var _time_until_next_wave := 0.0
 var _waiting_immigrants := 0
 var _confirmation_time_left := 0.0
 var _random := RandomNumberGenerator.new()
+var _reported_missing_town_center := false
 
 
 func _ready() -> void:
@@ -61,6 +65,13 @@ func _try_accept_waiting_immigrants() -> void:
 	if vacant_houses.size() < _waiting_immigrants:
 		_update_waiting_notification(vacant_houses.size())
 		return
+	if not is_instance_valid(town_center):
+		if not _reported_missing_town_center:
+			push_error(
+				"ImmigrationManager requires a valid TownCenter node."
+			)
+			_reported_missing_town_center = true
+		return
 
 	var accepted_count := _waiting_immigrants
 	for index in accepted_count:
@@ -94,7 +105,7 @@ func _get_spawn_position(index: int, count: int) -> Vector2:
 	var column := index % 3
 	var row_count := mini(columns, count - row * 3)
 	var row_width := (row_count - 1) * spawn_spacing
-	return entrance_position + Vector2(
+	return town_center.get_immigrant_spawn_origin() + Vector2(
 		column * spawn_spacing - row_width * 0.5,
 		row * spawn_spacing
 	)
