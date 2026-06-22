@@ -6,6 +6,7 @@
 [ext_resource type="Script" uid="uid://vd6mjevw2eis" path="res://scripts/building_manager.gd" id="4_building"]
 [ext_resource type="PackedScene" uid="uid://b446t2rotidpl" path="res://scenes/wood_resource.tscn" id="5_resource"]
 [ext_resource type="Script" uid="uid://he8omt5eoimf" path="res://scripts/selected_villager_ui.gd" id="6_villager_ui"]
+[ext_resource type="Script" path="res://scripts/immigration_manager.gd" id="7_immigration"]
 
 [sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_sugp2"]
 
@@ -126,6 +127,13 @@ antialiased = true
 z_index = 20
 script = ExtResource("4_building")
 
+[node name="ImmigrationManager" type="Node" parent="."]
+script = ExtResource("7_immigration")
+villager_scene = ExtResource("1_0wfyh")
+villagers_path = NodePath("../Villagers")
+building_manager_path = NodePath("../BuildingManager")
+notification_label_path = NodePath("../Interface/ImmigrationNotification")
+
 [node name="Interface" type="CanvasLayer" parent="." unique_id=1838611413]
 
 [node name="Help" type="Label" parent="Interface" unique_id=255283850]
@@ -166,12 +174,29 @@ theme_override_font_sizes/font_size = 16
 theme_override_styles/normal = SubResource("StyleBoxFlat_help")
 text = "x1/人"
 
+[node name="ImmigrationNotification" type="Label" parent="Interface"]
+visible = false
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 620.0
+offset_top = 18.0
+offset_right = -620.0
+offset_bottom = 62.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.9, 0.58, 1)
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_help")
+text = "新移民"
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="BuildingMenu" type="PanelContainer" parent="Interface"]
 visible = false
 offset_left = 18.0
 offset_top = 82.0
 offset_right = 260.0
-offset_bottom = 262.0
+offset_bottom = 306.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_building_menu")
 
 [node name="MenuContent" type="VBoxContainer" parent="Interface/BuildingMenu"]
@@ -192,6 +217,10 @@ text = "木頭儲存場"
 [node name="FactoryButton" type="Button" parent="Interface/BuildingMenu/MenuContent"]
 layout_mode = 2
 text = "木材廠（5 木頭 → 1 木材）"
+
+[node name="HouseButton" type="Button" parent="Interface/BuildingMenu/MenuContent"]
+layout_mode = 2
+text = "房屋（可住 1 人）"
 
 [node name="CancelButton" type="Button" parent="Interface/BuildingMenu/MenuContent"]
 layout_mode = 2

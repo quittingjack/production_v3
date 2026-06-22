@@ -1,7 +1,10 @@
 extends Node2D
 
+signal building_placed(building: Node2D)
+
 const BUILDING_SCENE := preload("res://scenes/building.tscn")
 const FACTORY_SCENE := preload("res://scenes/factory.tscn")
+const HOUSE_SCENE := preload("res://scenes/house.tscn")
 const BUILDING_SIZE := Vector2(96.0, 96.0)
 const FACTORY_SIZE := Vector2(128.0, 96.0)
 const GRID_SIZE := 32.0
@@ -16,6 +19,7 @@ const INVALID_COLOR := Color(0.95, 0.25, 0.25, 0.55)
 @onready var building_menu: PanelContainer = $"../Interface/BuildingMenu"
 @onready var storage_button: Button = $"../Interface/BuildingMenu/MenuContent/StorageButton"
 @onready var factory_button: Button = $"../Interface/BuildingMenu/MenuContent/FactoryButton"
+@onready var house_button: Button = $"../Interface/BuildingMenu/MenuContent/HouseButton"
 @onready var cancel_button: Button = $"../Interface/BuildingMenu/MenuContent/CancelButton"
 
 var _is_placing := false
@@ -34,6 +38,9 @@ func _ready() -> void:
 	)
 	factory_button.pressed.connect(
 		_start_placement.bind(FACTORY_SCENE, FACTORY_SIZE)
+	)
+	house_button.pressed.connect(
+		_start_placement.bind(HOUSE_SCENE, BUILDING_SIZE)
 	)
 	cancel_button.pressed.connect(_close_building_menu)
 	_rebuild_navigation()
@@ -125,6 +132,7 @@ func _place_building() -> void:
 	buildings.add_child(building)
 	_cancel_placement()
 	_rebuild_navigation()
+	building_placed.emit(building)
 
 
 func request_navigation_rebuild() -> void:
