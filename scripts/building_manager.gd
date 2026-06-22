@@ -1,10 +1,12 @@
 extends Node2D
 
-signal building_placed(building: Node2D)
+signal construction_started(site: ConstructionSite)
+signal building_completed(building: Node2D)
 
 const BUILDING_SCENE := preload("res://scenes/building.tscn")
 const FACTORY_SCENE := preload("res://scenes/factory.tscn")
 const HOUSE_SCENE := preload("res://scenes/house.tscn")
+const CONSTRUCTION_SITE_SCENE := preload("res://scenes/construction_site.tscn")
 const BUILDING_SIZE := Vector2(96.0, 96.0)
 const FACTORY_SIZE := Vector2(128.0, 96.0)
 const GRID_SIZE := 32.0
@@ -127,12 +129,46 @@ func _cancel_placement() -> void:
 func _place_building() -> void:
 	if not _selected_scene:
 		return
-	var building := _selected_scene.instantiate() as Node2D
-	building.position = _preview_position
-	buildings.add_child(building)
+	var site := CONSTRUCTION_SITE_SCENE.instantiate() as ConstructionSite
+	var target_building := _selected_scene.instantiate() as BuildableBuilding
+	if not site or not target_building:
+		push_error("Building placement requires a BuildableBuilding scene.")
+		return
+
+	site.position = _preview_position
+	site.initialize(
+		_selected_scene,
+		_selected_size,
+		target_building.construction_resource_type,
+		target_building.construction_material_amount,
+		target_building.construction_duration
+	)
+	target_building.free()
+	site.construction_completed.connect(_on_construction_completed)
+	buildings.add_child(site)
 	_cancel_placement()
 	_rebuild_navigation()
-	building_placed.emit(building)
+	construction_started.emit(site)
+
+
+func _on_construction_completed(
+	site: ConstructionSite,
+	target_scene: PackedScene
+) -> void:
+	if not is_instance_valid(site) or not target_scene:
+		return
+
+	var completed_building := target_scene.instantiate() as Node2D
+	if not completed_building:
+		push_error("Construction target must instantiate as Node2D.")
+		return
+
+	completed_building.position = site.position
+	buildings.remove_child(site)
+	site.queue_free()
+	buildings.add_child(completed_building)
+	_rebuild_navigation()
+	building_completed.emit(completed_building)
 
 
 func request_navigation_rebuild() -> void:

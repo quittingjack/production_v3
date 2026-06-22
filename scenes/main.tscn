@@ -233,7 +233,7 @@ anchor_right = 1.0
 offset_left = -300.0
 offset_top = 18.0
 offset_right = -18.0
-offset_bottom = 202.0
+offset_bottom = 246.0
 grow_horizontal = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_villager_panel")
 script = ExtResource("6_villager_ui")
@@ -292,3 +292,8 @@ horizontal_alignment = 2
 unique_name_in_owner = true
 layout_mode = 2
 text = "建立搬運作業"
+
+[node name="CreateTotalHaulButton" type="Button" parent="Interface/SelectedVillagerPanel/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "建立總數搬運作業"

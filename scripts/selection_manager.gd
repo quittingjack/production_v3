@@ -22,6 +22,8 @@ var _haul_source: Building
 var _haul_waypoints: Array[Vector2] = []
 var _haul_amount_per_trip := 1
 var _haul_max_amount := 1
+var _haul_is_total := false
+var _haul_total_amount := 10
 const HAUL_CURSOR_LABEL_OFFSET := Vector2(16.0, 20.0)
 
 
@@ -93,6 +95,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func begin_haul_planning() -> void:
+	_begin_haul_planning(false)
+
+
+func begin_total_haul_planning() -> void:
+	_begin_haul_planning(true)
+
+
+func _begin_haul_planning(is_total: bool) -> void:
 	if _is_building_placement_active():
 		return
 
@@ -115,9 +125,11 @@ func begin_haul_planning() -> void:
 
 	get_viewport().gui_release_focus()
 	_is_haul_planning = true
+	_haul_is_total = is_total
 	_haul_source = null
 	_haul_waypoints.clear()
 	_haul_amount_per_trip = clampi(1, 1, maxi(_haul_max_amount, 1))
+	_haul_total_amount = 10
 	haul_route_preview.clear_points()
 	haul_route_preview.visible = true
 	haul_planning_label.visible = true
@@ -166,13 +178,19 @@ func _handle_haul_planning_input(event: InputEvent) -> void:
 		return
 
 	if mouse_event.button_index == MOUSE_BUTTON_WHEEL_UP:
-		_haul_amount_per_trip = mini(
-			_haul_amount_per_trip + 1,
-			maxi(_haul_max_amount, 1)
-		)
+		if _haul_is_total:
+			_haul_total_amount += 1
+		else:
+			_haul_amount_per_trip = mini(
+				_haul_amount_per_trip + 1,
+				maxi(_haul_max_amount, 1)
+			)
 		_update_haul_planning_label()
 	elif mouse_event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-		_haul_amount_per_trip = maxi(_haul_amount_per_trip - 1, 1)
+		if _haul_is_total:
+			_haul_total_amount = maxi(_haul_total_amount - 1, 1)
+		else:
+			_haul_amount_per_trip = maxi(_haul_amount_per_trip - 1, 1)
 		_update_haul_planning_label()
 	elif mouse_event.button_index == MOUSE_BUTTON_RIGHT:
 		if not _haul_waypoints.is_empty():
@@ -215,19 +233,30 @@ func _finish_haul_planning(destination: Building) -> void:
 		if is_instance_valid(villager):
 			assigned_villagers.append(villager)
 
-	for villager in assigned_villagers:
-		villager.start_haul_job(
+	if _haul_is_total:
+		var job := TotalHaulJob.new(
 			_haul_source,
 			destination,
-			_haul_waypoints,
-			_haul_amount_per_trip
+			_haul_source.get_output_resource_type(),
+			_haul_total_amount
 		)
+		for villager in assigned_villagers:
+			villager.start_total_haul_job(job, _haul_waypoints)
+	else:
+		for villager in assigned_villagers:
+			villager.start_haul_job(
+				_haul_source,
+				destination,
+				_haul_waypoints,
+				_haul_amount_per_trip
+			)
 
 	_cancel_haul_planning()
 
 
 func _cancel_haul_planning() -> void:
 	_is_haul_planning = false
+	_haul_is_total = false
 	_haul_villagers.clear()
 	_haul_source = null
 	_haul_waypoints.clear()
@@ -250,21 +279,29 @@ func _update_haul_preview(mouse_world_position: Vector2) -> void:
 
 
 func _update_haul_planning_label() -> void:
+	var amount_description := (
+		"總量：%d" % _haul_total_amount
+		if _haul_is_total
+		else "每人載量：%d" % _haul_amount_per_trip
+	)
 	if not is_instance_valid(_haul_source):
 		haul_planning_label.text = (
-			"搬運規劃：左鍵選擇起點建築\n"
-			+ "滾輪調整每人載量：%d　Esc 取消"
-			% _haul_amount_per_trip
-		)
+			"%s：左鍵選擇起點建築\n"
+			+ "滾輪調整%s　Esc 取消"
+		) % [
+			"總數搬運規劃" if _haul_is_total else "搬運規劃",
+			amount_description,
+		]
 		return
 
 	haul_planning_label.text = (
-		"搬運規劃：%s × %d／人／趟\n"
+		"%s：%s，%s\n"
 		+ "左鍵空地新增中間點，左鍵相容建築完成\n"
 		+ "右鍵撤銷中間點　Esc 取消"
 	) % [
+		"總數搬運規劃" if _haul_is_total else "搬運規劃",
 		String(_haul_source.get_output_resource_type()),
-		_haul_amount_per_trip,
+		amount_description,
 	]
 	_update_haul_amount_cursor_text()
 
@@ -282,12 +319,16 @@ func _update_haul_amount_cursor_text() -> void:
 		return
 
 	if not is_instance_valid(_haul_source):
-		haul_amount_cursor_label.text = "x%d/人" % _haul_amount_per_trip
+		haul_amount_cursor_label.text = (
+			"總數 x%d" % _haul_total_amount
+			if _haul_is_total
+			else "x%d/人" % _haul_amount_per_trip
+		)
 		return
 
 	haul_amount_cursor_label.text = "%s x%d" % [
 		String(_haul_source.get_output_resource_type()),
-		_haul_amount_per_trip,
+		_haul_total_amount if _haul_is_total else _haul_amount_per_trip,
 	]
 
 

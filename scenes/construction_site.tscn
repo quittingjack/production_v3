@@ -1,0 +1,62 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/construction_site.gd" id="1_site"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_site"]
+size = Vector2(96, 96)
+
+[node name="ConstructionSite" type="Node2D" groups=["buildings", "construction_sites"]]
+script = ExtResource("1_site")
+obstacle_size = Vector2(96, 96)
+interaction_range_multiplier = 2.0
+interaction_slot_clearance = 4.0
+interaction_slot_spacing = 24.0
+
+[node name="SiteBody" type="Polygon2D" parent="."]
+color = Color(0.65, 0.48, 0.2, 0.42)
+polygon = PackedVector2Array(-48, -48, 48, -48, 48, 48, -48, 48)
+
+[node name="CrossA" type="Line2D" parent="."]
+width = 5.0
+default_color = Color(1, 0.78, 0.28, 0.9)
+points = PackedVector2Array(-40, -40, 40, 40)
+
+[node name="CrossB" type="Line2D" parent="."]
+width = 5.0
+default_color = Color(1, 0.78, 0.28, 0.9)
+points = PackedVector2Array(40, -40, -40, 40)
+
+[node name="StorageLabel" type="Label" parent="."]
+z_index = 2
+offset_left = -90.0
+offset_top = -86.0
+offset_right = 90.0
+offset_bottom = -60.0
+theme_override_colors/font_color = Color(1, 0.92, 0.58, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 16
+text = "wood：0/10"
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="."]
+z_index = 2
+offset_left = -90.0
+offset_top = 60.0
+offset_right = 90.0
+offset_bottom = 86.0
+theme_override_colors/font_color = Color(1, 0.86, 0.48, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 16
+text = "等待建材"
+horizontal_alignment = 1
+
+[node name="StaticBody2D" type="StaticBody2D" parent="."]
+collision_layer = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+shape = SubResource("RectangleShape2D_site")
+

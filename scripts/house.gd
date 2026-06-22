@@ -1,5 +1,5 @@
 class_name House
-extends InteractionSlotHost
+extends BuildableBuilding
 
 var _resident: Villager
 

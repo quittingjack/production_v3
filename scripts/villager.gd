@@ -74,6 +74,7 @@ var _haul_destination: Building
 var _haul_waypoints: Array[Vector2] = []
 var _haul_amount_per_trip := 1
 var _haul_resource_type: StringName = &""
+var _total_haul_job: TotalHaulJob
 var _haul_route_index := 0
 var _haul_slot_host: Building
 var _haul_slot := -1
@@ -97,6 +98,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	_cancel_haul_job()
 	_release_all_slots()
 
 
@@ -210,6 +212,42 @@ func start_haul_job(
 
 	if _backpack_amount > 0:
 		if _backpack_resource_type == _haul_resource_type:
+			_begin_haul_outbound()
+		else:
+			_end_haul_job()
+		return
+
+	_begin_haul_source_approach()
+
+
+func start_total_haul_job(
+	job: TotalHaulJob,
+	waypoints: Array[Vector2]
+) -> void:
+	if not job or not job.is_valid():
+		return
+
+	_cancel_haul_job()
+	_release_all_slots()
+	_resource_target = null
+	_building_target = null
+	_work_resource_type = &""
+	_total_haul_job = job
+	_haul_source = job.source
+	_haul_destination = job.destination
+	_haul_waypoints = waypoints.duplicate()
+	_haul_amount_per_trip = maxi(backpack_capacity, 1)
+	_haul_resource_type = job.resource_type
+	_haul_route_index = 0
+	_action_timer = 0.0
+
+	if _backpack_amount > 0:
+		if _backpack_resource_type == _haul_resource_type:
+			var claimed := job.claim_amount(self, _backpack_amount)
+			if claimed < _backpack_amount:
+				_end_haul_job()
+				return
+			job.adjust_claim_after_pickup(self, _backpack_amount)
 			_begin_haul_outbound()
 		else:
 			_end_haul_job()
@@ -878,7 +916,15 @@ func _try_reserve_haul_source_slot() -> void:
 func _take_haul_output() -> void:
 	var free_space := maxi(backpack_capacity - _backpack_amount, 0)
 	var requested := mini(_haul_amount_per_trip, free_space)
+	if _total_haul_job:
+		requested = _total_haul_job.claim_amount(self, free_space)
+		if requested <= 0:
+			_release_haul_slot()
+			_end_haul_job()
+			return
 	var taken := _haul_source.take_output(_haul_resource_type, requested)
+	if _total_haul_job:
+		_total_haul_job.adjust_claim_after_pickup(self, taken)
 	_release_haul_slot()
 	if taken <= 0:
 		_state = WorkState.HAUL_WAITING_FOR_SOURCE
@@ -981,6 +1027,8 @@ func _deposit_haul_output() -> void:
 		_backpack_resource_type,
 		_backpack_amount
 	)
+	if _total_haul_job:
+		_total_haul_job.record_delivery(self, stored)
 	_backpack_amount -= stored
 	_release_haul_slot()
 	if _backpack_amount > 0:
@@ -991,6 +1039,9 @@ func _deposit_haul_output() -> void:
 		return
 
 	_clear_backpack()
+	if _total_haul_job and _total_haul_job.is_complete():
+		_end_haul_job()
+		return
 	_begin_haul_return()
 
 
@@ -1016,6 +1067,15 @@ func _advance_haul_return() -> void:
 
 
 func _is_haul_job_valid() -> bool:
+	if _total_haul_job:
+		if not _total_haul_job.is_valid():
+			return false
+		if (
+			_backpack_amount <= 0
+			and _total_haul_job.get_claimed_amount(self) <= 0
+			and _total_haul_job.is_fully_covered()
+		):
+			return false
 	return (
 		is_instance_valid(_haul_source)
 		and not _haul_source.is_queued_for_deletion()
@@ -1029,6 +1089,9 @@ func _is_haul_job_valid() -> bool:
 
 func _cancel_haul_job() -> void:
 	_release_haul_slot()
+	if _total_haul_job:
+		_total_haul_job.release_claim(self)
+	_total_haul_job = null
 	_haul_source = null
 	_haul_destination = null
 	_haul_waypoints.clear()

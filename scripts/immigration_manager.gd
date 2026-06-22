@@ -26,7 +26,7 @@ func _ready() -> void:
 	_random.randomize()
 	_time_until_next_wave = maxf(immigration_interval, 0.0)
 	notification_label.hide()
-	building_manager.building_placed.connect(_on_building_placed)
+	building_manager.building_completed.connect(_on_building_completed)
 
 
 func _process(delta: float) -> void:
@@ -111,6 +111,6 @@ func _update_waiting_notification(vacant_count: int = -1) -> void:
 	notification_label.show()
 
 
-func _on_building_placed(building: Node2D) -> void:
+func _on_building_completed(building: Node2D) -> void:
 	if building is House and _waiting_immigrants > 0:
 		_try_accept_waiting_immigrants()

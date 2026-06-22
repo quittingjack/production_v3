@@ -1,5 +1,5 @@
 class_name Building
-extends InteractionSlotHost
+extends BuildableBuilding
 
 signal storage_changed(building: Building)
 
