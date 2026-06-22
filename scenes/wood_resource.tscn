@@ -9,9 +9,9 @@ size = Vector2(64, 64)
 script = ExtResource("1_resource")
 resource_amount = 20000
 obstacle_size = Vector2(16, 16)
+interaction_range_multiplier = 4.0
 interaction_slot_clearance = 4.0
 interaction_slot_spacing = 32.0
-debug_draw_interaction_slots = true
 
 [node name="Trunk" type="Polygon2D" parent="." unique_id=449471167]
 z_index = 1

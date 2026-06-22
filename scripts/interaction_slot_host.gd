@@ -6,6 +6,11 @@ extends Node2D
 		obstacle_size = Vector2(maxf(value.x, 1.0), maxf(value.y, 1.0))
 		_request_slot_layout_rebuild()
 
+@export var interaction_range_multiplier := 1.0:
+	set(value):
+		interaction_range_multiplier = maxf(value, 0.01)
+		queue_redraw()
+
 @export var interaction_clearance := 40.0:
 	set(value):
 		interaction_clearance = maxf(value, 0.0)
@@ -38,10 +43,12 @@ extends Node2D
 @export var obstacle_color: Color = Color(0.35, 0.7, 1.0, 0.85)
 @export var interaction_perimeter_color: Color = Color(0.3, 1.0, 0.75, 0.65)
 @export var approach_perimeter_color: Color = Color(0.85, 0.45, 1.0, 0.65)
+@export var hover_highlight_color: Color = Color(1.0, 0.92, 0.25, 0.9)
 
 var _interaction_slot_positions: Array[Vector2] = []
 var _interaction_slot_occupants: Array[Node] = []
 var _slot_layout_ready := false
+var _is_hovered := false
 
 
 func _ready() -> void:
@@ -148,12 +155,26 @@ func get_interaction_slot_count() -> int:
 func get_navigation_obstacle_size() -> Vector2:
 	return obstacle_size
 
+
+func get_interaction_size() -> Vector2:
+	return obstacle_size * interaction_range_multiplier
+
+
 func contains_point(world_position: Vector2) -> bool:
+	var interaction_size := get_interaction_size()
 	var rect := Rect2(
-		global_position - obstacle_size * 0.5,
-		obstacle_size
+		global_position - interaction_size * 0.5,
+		interaction_size
 	)
 	return rect.has_point(world_position)
+
+
+func set_hovered(value: bool) -> void:
+	if _is_hovered == value:
+		return
+	_is_hovered = value
+	queue_redraw()
+
 
 func _request_slot_layout_rebuild() -> void:
 	if not _slot_layout_ready:
@@ -346,6 +367,19 @@ func _request_debug_redraw() -> void:
 
 
 func _draw() -> void:
+	if _is_hovered:
+		var half_interaction_size := get_interaction_size() * 0.5
+		draw_rect(
+			Rect2(-half_interaction_size, get_interaction_size()),
+			Color(hover_highlight_color, 0.12),
+			true
+		)
+		_draw_rectangle_outline(
+			half_interaction_size,
+			hover_highlight_color,
+			3.0
+		)
+
 	if not debug_draw_interaction_slots:
 		return
 

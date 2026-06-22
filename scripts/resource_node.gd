@@ -29,14 +29,6 @@ func take_resource(amount: int) -> int:
 	return taken
 
 
-func contains_point(world_position: Vector2) -> bool:
-	var resource_rect := Rect2(
-		global_position - obstacle_size * 0.5,
-		obstacle_size
-	)
-	return resource_rect.has_point(world_position)
-
-
 func get_interaction_position(from_position: Vector2) -> Vector2:
 	return super.get_interaction_position(from_position)
 

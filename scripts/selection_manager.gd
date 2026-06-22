@@ -11,14 +11,25 @@ var _left_button_down := false
 var _is_dragging := false
 var _drag_start := Vector2.ZERO
 var _drag_current := Vector2.ZERO
+var _hovered_interaction_host: InteractionSlotHost
 
 
 func _ready() -> void:
 	_set_selection_box_visible(false)
 
 
+func _process(_delta: float) -> void:
+	if _is_building_placement_active():
+		_set_hovered_interaction_host(null)
+		return
+
+	var world_position := _screen_to_world(get_viewport().get_mouse_position())
+	_update_hovered_interaction_host(world_position)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _is_building_placement_active():
+		_set_hovered_interaction_host(null)
 		return
 
 	if event is InputEventMouseButton:
@@ -247,6 +258,26 @@ func _find_building_at(world_position: Vector2) -> Building:
 				closest_distance = distance
 
 	return closest_building
+
+
+func _update_hovered_interaction_host(world_position: Vector2) -> void:
+	var hovered_host: InteractionSlotHost = _find_resource_at(world_position)
+	if not hovered_host:
+		hovered_host = _find_building_at(world_position)
+	_set_hovered_interaction_host(hovered_host)
+
+
+func _set_hovered_interaction_host(host: InteractionSlotHost) -> void:
+	if (
+		is_instance_valid(_hovered_interaction_host)
+		and _hovered_interaction_host != host
+	):
+		_hovered_interaction_host.set_hovered(false)
+
+	_hovered_interaction_host = host
+	if is_instance_valid(_hovered_interaction_host):
+		_hovered_interaction_host.set_hovered(true)
+
 
 func _selection_rect() -> Rect2:
 	return Rect2(_drag_start, _drag_current - _drag_start).abs()
