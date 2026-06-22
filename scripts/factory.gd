@@ -18,6 +18,7 @@ signal output_storage_changed(factory: Factory)
 @onready var input_label: Label = $InputLabel
 @onready var output_label: Label = $OutputLabel
 @onready var status_label: Label = $StatusLabel
+@onready var production_progress_bar: ProgressBar = $ProductionProgressBar
 
 var input_stored_amount := 0
 var output_stored_amount := 0
@@ -151,10 +152,18 @@ func _update_factory_labels() -> void:
 	]
 
 	if _is_producing:
-		status_label.text = "生產中：%.1fs" % _production_time_left
+		status_label.visible = false
+		production_progress_bar.visible = true
+		production_progress_bar.value = get_production_progress() * 100.0
 	elif input_stored_amount < maxi(input_amount, 1):
+		status_label.visible = true
+		production_progress_bar.visible = false
 		status_label.text = "等待木頭"
 	elif output_stored_amount + maxi(output_amount, 1) > maxi(output_capacity, 0):
+		status_label.visible = true
+		production_progress_bar.visible = false
 		status_label.text = "木材倉已滿"
 	else:
+		status_label.visible = true
+		production_progress_bar.visible = false
 		status_label.text = "待機"

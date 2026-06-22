@@ -77,6 +77,18 @@ theme_override_font_sizes/font_size = 15
 text = "等待木頭"
 horizontal_alignment = 1
 
+[node name="ProductionProgressBar" type="ProgressBar" parent="."]
+visible = false
+z_index = 2
+offset_left = -76.0
+offset_top = 58.0
+offset_right = 76.0
+offset_bottom = 82.0
+theme_override_colors/font_color = Color(0.88, 1, 0.76, 1)
+theme_override_font_sizes/font_size = 15
+value = 0.0
+show_percentage = true
+
 [node name="StaticBody2D" type="StaticBody2D" parent="." unique_id=482056805]
 collision_layer = 2
 

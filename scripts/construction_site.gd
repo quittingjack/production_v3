@@ -8,6 +8,7 @@ signal construction_completed(
 
 @onready var site_body: Polygon2D = $SiteBody
 @onready var status_label: Label = $StatusLabel
+@onready var construction_progress_bar: ProgressBar = $ConstructionProgressBar
 
 var target_scene: PackedScene
 var _is_constructing := false
@@ -122,11 +123,15 @@ func _update_storage_label() -> void:
 		return
 	if _is_constructing:
 		storage_label.text = ""
-		status_label.text = "施工中：%.1fs" % _construction_time_left
+		status_label.visible = false
+		construction_progress_bar.visible = true
+		construction_progress_bar.value = get_construction_progress() * 100.0
 	else:
 		storage_label.text = "%s：%d/%d" % [
 			String(accepted_resource_type),
 			stored_amount,
 			max_storage,
 		]
+		status_label.visible = true
+		construction_progress_bar.visible = false
 		status_label.text = "等待建材"
