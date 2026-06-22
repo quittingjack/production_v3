@@ -20,10 +20,10 @@ var _is_haul_planning := false
 var _haul_villagers: Array[Villager] = []
 var _haul_source: Building
 var _haul_waypoints: Array[Vector2] = []
-var _haul_amount_per_trip := 1
-var _haul_max_amount := 1
-var _haul_is_total := false
 var _haul_total_amount := 10
+var _is_quick_haul_planning := false
+var _quick_haul_villagers: Array[Villager] = []
+var _quick_haul_source: Building
 const HAUL_CURSOR_LABEL_OFFSET := Vector2(16.0, 20.0)
 
 
@@ -38,9 +38,10 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	var mouse_position := get_viewport().get_mouse_position()
 	var world_position := _screen_to_world(get_viewport().get_mouse_position())
-	if _is_haul_planning:
+	if _is_haul_planning or _is_quick_haul_planning:
 		_update_haul_preview(world_position)
-		_update_haul_amount_cursor_label(mouse_position)
+		if _is_haul_planning:
+			_update_haul_amount_cursor_label(mouse_position)
 		_set_hovered_interaction_host(_find_building_at(world_position))
 		return
 
@@ -52,7 +53,16 @@ func _process(_delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if not _is_haul_planning:
+	if not _is_haul_planning and not _is_quick_haul_planning:
+		return
+
+	if (
+		_is_quick_haul_planning
+		and event is InputEventMouseButton
+		and event.button_index == MOUSE_BUTTON_RIGHT
+		and not event.pressed
+	):
+		_handle_quick_haul_input(event)
 		return
 
 	if (
@@ -61,13 +71,19 @@ func _input(event: InputEvent) -> void:
 		and not event.echo
 		and event.keycode == KEY_ESCAPE
 	):
-		_cancel_haul_planning()
+		if _is_quick_haul_planning:
+			_cancel_quick_haul_planning()
+		else:
+			_cancel_haul_planning()
 		get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _is_haul_planning:
 		_handle_haul_planning_input(event)
+		return
+	if _is_quick_haul_planning:
+		_handle_quick_haul_input(event)
 		return
 
 	if _is_building_placement_active():
@@ -84,9 +100,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			else:
 				_finish_left_action(world_position)
 			get_viewport().set_input_as_handled()
-		elif mouse_button.button_index == MOUSE_BUTTON_RIGHT and mouse_button.pressed:
-			_command_selection_at(world_position)
-			get_viewport().set_input_as_handled()
+		elif mouse_button.button_index == MOUSE_BUTTON_RIGHT:
+			if mouse_button.pressed:
+				if not _try_begin_quick_haul_planning(world_position):
+					_command_selection_at(world_position)
+				get_viewport().set_input_as_handled()
 
 	elif event is InputEventMouseMotion and _left_button_down:
 		var mouse_motion := event as InputEventMouseMotion
@@ -94,41 +112,27 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func begin_haul_planning() -> void:
-	_begin_haul_planning(false)
-
-
 func begin_total_haul_planning() -> void:
-	_begin_haul_planning(true)
+	_begin_haul_planning()
 
 
-func _begin_haul_planning(is_total: bool) -> void:
+func _begin_haul_planning() -> void:
 	if _is_building_placement_active():
 		return
 
 	_haul_villagers.clear()
-	_haul_max_amount = 0
 	for villager in _selected_villagers:
 		if not is_instance_valid(villager):
 			continue
 		_haul_villagers.append(villager)
-		if _haul_max_amount == 0:
-			_haul_max_amount = villager.backpack_capacity
-		else:
-			_haul_max_amount = mini(
-				_haul_max_amount,
-				villager.backpack_capacity
-			)
 
 	if _haul_villagers.is_empty():
 		return
 
 	get_viewport().gui_release_focus()
 	_is_haul_planning = true
-	_haul_is_total = is_total
 	_haul_source = null
 	_haul_waypoints.clear()
-	_haul_amount_per_trip = clampi(1, 1, maxi(_haul_max_amount, 1))
 	_haul_total_amount = 10
 	haul_route_preview.clear_points()
 	haul_route_preview.visible = true
@@ -140,7 +144,7 @@ func _begin_haul_planning(is_total: bool) -> void:
 
 
 func is_haul_planning() -> bool:
-	return _is_haul_planning
+	return _is_haul_planning or _is_quick_haul_planning
 
 
 func get_selected_villagers() -> Array[Villager]:
@@ -178,19 +182,10 @@ func _handle_haul_planning_input(event: InputEvent) -> void:
 		return
 
 	if mouse_event.button_index == MOUSE_BUTTON_WHEEL_UP:
-		if _haul_is_total:
-			_haul_total_amount += 1
-		else:
-			_haul_amount_per_trip = mini(
-				_haul_amount_per_trip + 1,
-				maxi(_haul_max_amount, 1)
-			)
+		_haul_total_amount += 1
 		_update_haul_planning_label()
 	elif mouse_event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-		if _haul_is_total:
-			_haul_total_amount = maxi(_haul_total_amount - 1, 1)
-		else:
-			_haul_amount_per_trip = maxi(_haul_amount_per_trip - 1, 1)
+		_haul_total_amount = maxi(_haul_total_amount - 1, 1)
 		_update_haul_planning_label()
 	elif mouse_event.button_index == MOUSE_BUTTON_RIGHT:
 		if not _haul_waypoints.is_empty():
@@ -233,30 +228,20 @@ func _finish_haul_planning(destination: Building) -> void:
 		if is_instance_valid(villager):
 			assigned_villagers.append(villager)
 
-	if _haul_is_total:
-		var job := TotalHaulJob.new(
-			_haul_source,
-			destination,
-			_haul_source.get_output_resource_type(),
-			_haul_total_amount
-		)
-		for villager in assigned_villagers:
-			villager.start_total_haul_job(job, _haul_waypoints)
-	else:
-		for villager in assigned_villagers:
-			villager.start_haul_job(
-				_haul_source,
-				destination,
-				_haul_waypoints,
-				_haul_amount_per_trip
-			)
+	var job := TotalHaulJob.new(
+		_haul_source,
+		destination,
+		_haul_source.get_output_resource_type(),
+		_haul_total_amount
+	)
+	for villager in assigned_villagers:
+		villager.start_total_haul_job(job, _haul_waypoints)
 
 	_cancel_haul_planning()
 
 
 func _cancel_haul_planning() -> void:
 	_is_haul_planning = false
-	_haul_is_total = false
 	_haul_villagers.clear()
 	_haul_source = null
 	_haul_waypoints.clear()
@@ -269,37 +254,37 @@ func _cancel_haul_planning() -> void:
 
 func _update_haul_preview(mouse_world_position: Vector2) -> void:
 	haul_route_preview.clear_points()
-	if not is_instance_valid(_haul_source):
+	var source := (
+		_quick_haul_source
+		if _is_quick_haul_planning
+		else _haul_source
+	)
+	if not is_instance_valid(source):
 		return
 
-	haul_route_preview.add_point(to_local(_haul_source.global_position))
-	for waypoint in _haul_waypoints:
-		haul_route_preview.add_point(to_local(waypoint))
+	haul_route_preview.add_point(to_local(source.global_position))
+	if _is_haul_planning:
+		for waypoint in _haul_waypoints:
+			haul_route_preview.add_point(to_local(waypoint))
 	haul_route_preview.add_point(to_local(mouse_world_position))
 
 
 func _update_haul_planning_label() -> void:
-	var amount_description := (
-		"總量：%d" % _haul_total_amount
-		if _haul_is_total
-		else "每人載量：%d" % _haul_amount_per_trip
-	)
+	var amount_description := "總量：%d" % _haul_total_amount
 	if not is_instance_valid(_haul_source):
 		haul_planning_label.text = (
-			"%s：左鍵選擇起點建築\n"
+			"總數搬運規劃：左鍵選擇起點建築\n"
 			+ "滾輪調整%s　Esc 取消"
 		) % [
-			"總數搬運規劃" if _haul_is_total else "搬運規劃",
 			amount_description,
 		]
 		return
 
 	haul_planning_label.text = (
-		"%s：%s，%s\n"
+		"總數搬運規劃：%s，%s\n"
 		+ "左鍵空地新增中間點，左鍵相容建築完成\n"
 		+ "右鍵撤銷中間點　Esc 取消"
 	) % [
-		"總數搬運規劃" if _haul_is_total else "搬運規劃",
 		String(_haul_source.get_output_resource_type()),
 		amount_description,
 	]
@@ -319,17 +304,94 @@ func _update_haul_amount_cursor_text() -> void:
 		return
 
 	if not is_instance_valid(_haul_source):
-		haul_amount_cursor_label.text = (
-			"總數 x%d" % _haul_total_amount
-			if _haul_is_total
-			else "x%d/人" % _haul_amount_per_trip
-		)
+		haul_amount_cursor_label.text = "總數 x%d" % _haul_total_amount
 		return
 
 	haul_amount_cursor_label.text = "%s x%d" % [
 		String(_haul_source.get_output_resource_type()),
-		_haul_total_amount if _haul_is_total else _haul_amount_per_trip,
+		_haul_total_amount,
 	]
+
+
+func _try_begin_quick_haul_planning(world_position: Vector2) -> bool:
+	if _find_resource_at(world_position):
+		return false
+
+	var source := _find_building_at(world_position)
+	if (
+		not is_instance_valid(source)
+		or source.get_output_resource_type() == &""
+	):
+		return false
+
+	_quick_haul_villagers.clear()
+	for villager in _selected_villagers:
+		if is_instance_valid(villager):
+			_quick_haul_villagers.append(villager)
+	if _quick_haul_villagers.is_empty():
+		return false
+
+	_is_quick_haul_planning = true
+	_quick_haul_source = source
+	haul_route_preview.clear_points()
+	haul_route_preview.visible = true
+	haul_planning_label.text = (
+		"搬運規劃：%s，每位村民使用最大載量\n"
+		+ "在相容建築上放開右鍵　Esc 取消"
+	) % String(source.get_output_resource_type())
+	haul_planning_label.visible = true
+	haul_amount_cursor_label.visible = false
+	_set_hovered_interaction_host(source)
+	return true
+
+
+func _handle_quick_haul_input(event: InputEvent) -> void:
+	if event is not InputEventMouseButton:
+		return
+
+	var mouse_event := event as InputEventMouseButton
+	if (
+		mouse_event.button_index == MOUSE_BUTTON_RIGHT
+		and not mouse_event.pressed
+	):
+		_finish_quick_haul_planning(
+			_find_building_at(_screen_to_world(mouse_event.position))
+		)
+	get_viewport().set_input_as_handled()
+
+
+func _finish_quick_haul_planning(destination: Building) -> void:
+	if (
+		not is_instance_valid(_quick_haul_source)
+		or not is_instance_valid(destination)
+		or destination == _quick_haul_source
+		or not destination.accepts_resource(
+			_quick_haul_source.get_output_resource_type()
+		)
+	):
+		_cancel_quick_haul_planning()
+		return
+
+	for villager in _quick_haul_villagers:
+		if is_instance_valid(villager):
+			villager.start_haul_job(
+				_quick_haul_source,
+				destination,
+				[],
+				maxi(villager.backpack_capacity, 1)
+			)
+	_cancel_quick_haul_planning()
+
+
+func _cancel_quick_haul_planning() -> void:
+	_is_quick_haul_planning = false
+	_quick_haul_villagers.clear()
+	_quick_haul_source = null
+	haul_route_preview.clear_points()
+	haul_route_preview.visible = false
+	haul_planning_label.visible = false
+	haul_amount_cursor_label.visible = false
+	_set_hovered_interaction_host(null)
 
 
 func _begin_left_action(world_position: Vector2) -> void:

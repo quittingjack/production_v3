@@ -149,7 +149,7 @@ offset_bottom = 65.0
 theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
 theme_override_font_sizes/font_size = 18
 theme_override_styles/normal = SubResource("StyleBoxFlat_help")
-text = "左鍵：單選／拖曳框選    右鍵空地：移動    右鍵木頭：採集    B：建築選單    村民面板：建立搬運作業    WASD：移動相機    滾輪：縮放"
+text = "左鍵：單選／拖曳框選    右鍵空地：移動    右鍵木頭：採集    右鍵拖曳建築：搬運    B：建築選單    WASD：移動相機    滾輪：縮放"
 
 [node name="HaulPlanningLabel" type="Label" parent="Interface"]
 visible = false
@@ -292,11 +292,6 @@ theme_override_colors/font_color = Color(0.4, 0.9, 1, 1)
 theme_override_font_sizes/font_size = 16
 text = "true"
 horizontal_alignment = 2
-
-[node name="CreateHaulButton" type="Button" parent="Interface/SelectedVillagerPanel/Content"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "建立搬運作業"
 
 [node name="CreateTotalHaulButton" type="Button" parent="Interface/SelectedVillagerPanel/Content"]
 unique_name_in_owner = true
