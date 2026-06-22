@@ -148,6 +148,12 @@ func get_interaction_slot_count() -> int:
 func get_navigation_obstacle_size() -> Vector2:
 	return obstacle_size
 
+func contains_point(world_position: Vector2) -> bool:
+	var rect := Rect2(
+		global_position - obstacle_size * 0.5,
+		obstacle_size
+	)
+	return rect.has_point(world_position)
 
 func _request_slot_layout_rebuild() -> void:
 	if not _slot_layout_ready:

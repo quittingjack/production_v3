@@ -210,6 +210,13 @@ func _command_selection_at(world_position: Vector2) -> void:
 				villager.gather_from(resource_node)
 		return
 
+	var building := _find_building_at(world_position)
+	if building:
+		for villager in _selected_villagers:
+			if is_instance_valid(villager):
+				villager.move_to(building.global_position)
+		return
+
 	_move_selection_to(world_position)
 
 
@@ -227,6 +234,19 @@ func _find_resource_at(world_position: Vector2) -> ResourceNode:
 
 	return closest_resource
 
+func _find_building_at(world_position: Vector2) -> Building:
+	var closest_building: Building = null
+	var closest_distance := INF
+
+	for node in get_tree().get_nodes_in_group(&"buildings"):
+		var building := node as Building
+		if building and building.contains_point(world_position):
+			var distance := building.global_position.distance_squared_to(world_position)
+			if distance < closest_distance:
+				closest_building = building
+				closest_distance = distance
+
+	return closest_building
 
 func _selection_rect() -> Rect2:
 	return Rect2(_drag_start, _drag_current - _drag_start).abs()
