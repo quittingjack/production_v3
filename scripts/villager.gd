@@ -78,7 +78,7 @@ var _haul_destination: Building
 var _haul_waypoints: Array[Vector2] = []
 var _haul_amount_per_trip := 1
 var _haul_resource_type: StringName = &""
-var _total_haul_job: TotalHaulJob
+var _construction_job: ConstructionJob
 var _haul_route_index := 0
 var _haul_slot_host: Building
 var _haul_slot := -1
@@ -230,9 +230,10 @@ func start_haul_job(
 	_begin_haul_source_approach()
 
 
-func start_total_haul_job(
-	job: TotalHaulJob,
-	waypoints: Array[Vector2]
+func start_construction_job(
+	job: ConstructionJob,
+	waypoints: Array[Vector2],
+	haul_material: bool
 ) -> void:
 	if not job or not job.is_valid():
 		return
@@ -243,9 +244,13 @@ func start_total_haul_job(
 	_resource_target = null
 	_building_target = null
 	_work_resource_type = &""
-	_total_haul_job = job
+	_construction_job = job
+	if not haul_material or job.site.is_material_ready():
+		_start_construction_waiting(job.site)
+		return
+
 	_haul_source = job.source
-	_haul_destination = job.destination
+	_haul_destination = job.site
 	_haul_waypoints = waypoints.duplicate()
 	_haul_amount_per_trip = maxi(backpack_capacity, 1)
 	_haul_resource_type = job.resource_type
@@ -256,12 +261,12 @@ func start_total_haul_job(
 		if _backpack_resource_type == _haul_resource_type:
 			var claimed := job.claim_amount(self, _backpack_amount)
 			if claimed < _backpack_amount:
-				_end_haul_job()
+				_cancel_haul_job()
 				return
 			job.adjust_claim_after_pickup(self, _backpack_amount)
 			_begin_haul_outbound()
 		else:
-			_end_haul_job()
+			_cancel_haul_job()
 		return
 
 	_begin_haul_source_approach()
@@ -277,6 +282,17 @@ func construct_at(site: ConstructionSite) -> void:
 	_resource_target = null
 	_building_target = null
 	_work_resource_type = &""
+	_construction_target = site
+	_action_timer = 0.0
+	site.assign_builder(self)
+	_begin_construction_approach()
+
+
+func _start_construction_waiting(site: ConstructionSite) -> void:
+	if not _is_construction_site_valid(site):
+		_end_haul_job()
+		return
+	_cancel_haul_job(false)
 	_construction_target = site
 	_action_timer = 0.0
 	site.assign_builder(self)
@@ -990,6 +1006,8 @@ func _cancel_construction_job() -> void:
 		_construction_target.remove_builder(self)
 	_release_construction_slot()
 	_construction_target = null
+	if not is_instance_valid(_haul_source):
+		_construction_job = null
 
 
 func _end_construction_job() -> void:
@@ -1003,6 +1021,7 @@ func on_construction_site_completed(site: ConstructionSite) -> void:
 		return
 	_release_construction_slot()
 	_construction_target = null
+	_construction_job = null
 	_state = WorkState.IDLE
 	_stop_at_current_position()
 
@@ -1011,6 +1030,13 @@ func _begin_haul_source_approach() -> void:
 	_release_haul_slot()
 	if not _is_haul_job_valid():
 		_end_haul_job()
+		return
+	if (
+		_construction_job
+		and _backpack_amount <= 0
+		and _construction_job.is_fully_covered()
+	):
+		_start_construction_waiting(_construction_job.site)
 		return
 	if _backpack_amount > 0:
 		_begin_haul_outbound()
@@ -1071,15 +1097,15 @@ func _try_reserve_haul_source_slot() -> void:
 func _take_haul_output() -> void:
 	var free_space := maxi(backpack_capacity - _backpack_amount, 0)
 	var requested := mini(_haul_amount_per_trip, free_space)
-	if _total_haul_job:
-		requested = _total_haul_job.claim_amount(self, free_space)
+	if _construction_job:
+		requested = _construction_job.claim_amount(self, free_space)
 		if requested <= 0:
 			_release_haul_slot()
-			_end_haul_job()
+			_start_construction_waiting(_construction_job.site)
 			return
 	var taken := _haul_source.take_output(_haul_resource_type, requested)
-	if _total_haul_job:
-		_total_haul_job.adjust_claim_after_pickup(self, taken)
+	if _construction_job:
+		_construction_job.adjust_claim_after_pickup(self, taken)
 	_release_haul_slot()
 	if taken <= 0:
 		_state = WorkState.HAUL_WAITING_FOR_SOURCE
@@ -1182,8 +1208,8 @@ func _deposit_haul_output() -> void:
 		_backpack_resource_type,
 		_backpack_amount
 	)
-	if _total_haul_job:
-		_total_haul_job.record_delivery(self, stored)
+	if _construction_job:
+		_construction_job.record_delivery(self, stored)
 	_backpack_amount -= stored
 	_release_haul_slot()
 	if _backpack_amount > 0:
@@ -1194,8 +1220,8 @@ func _deposit_haul_output() -> void:
 		return
 
 	_clear_backpack()
-	if _total_haul_job and _total_haul_job.is_complete():
-		_end_haul_job()
+	if _construction_job and _construction_job.is_fully_covered():
+		_start_construction_waiting(_construction_job.site)
 		return
 	_begin_haul_return()
 
@@ -1222,14 +1248,8 @@ func _advance_haul_return() -> void:
 
 
 func _is_haul_job_valid() -> bool:
-	if _total_haul_job:
-		if not _total_haul_job.is_valid():
-			return false
-		if (
-			_backpack_amount <= 0
-			and _total_haul_job.get_claimed_amount(self) <= 0
-			and _total_haul_job.is_fully_covered()
-		):
+	if _construction_job:
+		if not _construction_job.is_valid():
 			return false
 	return (
 		is_instance_valid(_haul_source)
@@ -1242,11 +1262,12 @@ func _is_haul_job_valid() -> bool:
 	)
 
 
-func _cancel_haul_job() -> void:
+func _cancel_haul_job(clear_construction_job := true) -> void:
 	_release_haul_slot()
-	if _total_haul_job:
-		_total_haul_job.release_claim(self)
-	_total_haul_job = null
+	if _construction_job:
+		_construction_job.release_claim(self)
+	if clear_construction_job:
+		_construction_job = null
 	_haul_source = null
 	_haul_destination = null
 	_haul_waypoints.clear()

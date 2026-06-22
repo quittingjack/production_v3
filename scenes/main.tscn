@@ -167,18 +167,6 @@ theme_override_styles/normal = SubResource("StyleBoxFlat_help")
 text = "搬運規劃"
 horizontal_alignment = 1
 
-[node name="HaulAmountCursorLabel" type="Label" parent="Interface"]
-visible = false
-offset_left = 24.0
-offset_top = 24.0
-offset_right = 140.0
-offset_bottom = 58.0
-mouse_filter = 2
-theme_override_colors/font_color = Color(1, 0.95, 0.72, 1)
-theme_override_font_sizes/font_size = 16
-theme_override_styles/normal = SubResource("StyleBoxFlat_help")
-text = "x1/人"
-
 [node name="ImmigrationNotification" type="Label" parent="Interface"]
 visible = false
 anchors_preset = 10
@@ -293,7 +281,7 @@ theme_override_font_sizes/font_size = 16
 text = "true"
 horizontal_alignment = 2
 
-[node name="CreateTotalHaulButton" type="Button" parent="Interface/SelectedVillagerPanel/Content"]
+[node name="create_construction_button" type="Button" parent="Interface/SelectedVillagerPanel/Content"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "建立總數搬運作業"
+text = "建立建造作業"

@@ -36,13 +36,13 @@ func _run_test() -> void:
 
 	_send_right_button(main, selection_manager, source.global_position, true)
 	await process_frame
-	if not selection_manager.is_haul_planning():
+	if not selection_manager.is_command_planning():
 		_fail("Right-button press on a valid source did not start haul planning.")
 		return
 
 	_send_right_button(main, selection_manager, destination.global_position, false)
 	await process_frame
-	if selection_manager.is_haul_planning():
+	if selection_manager.is_command_planning():
 		_fail("Right-button release did not finish haul planning.")
 		return
 	if first._haul_amount_per_trip != 3 or second._haul_amount_per_trip != 7:
@@ -59,7 +59,7 @@ func _run_test() -> void:
 	await process_frame
 	_send_right_button(main, selection_manager, source.global_position, false)
 	await process_frame
-	if selection_manager.is_haul_planning():
+	if selection_manager.is_command_planning():
 		_fail("Releasing on the source building did not cancel haul planning.")
 		return
 
@@ -72,26 +72,45 @@ func _run_test() -> void:
 		false
 	)
 	await process_frame
-	if selection_manager.is_haul_planning():
+	if selection_manager.is_command_planning():
 		_fail("Releasing on empty ground did not cancel haul planning.")
 		return
 
 	var construction_site := site_scene.instantiate() as ConstructionSite
+	var house_scene := load("res://scenes/house.tscn") as PackedScene
+	construction_site.initialize(
+		house_scene,
+		Vector2(96.0, 96.0),
+		&"wood",
+		3,
+		10.0
+	)
 	construction_site.position = Vector2(1320.0, 700.0)
 	buildings.add_child(construction_site)
+	source.store_resource(&"wood", 3)
+	await process_frame
+	_send_right_button(
+		main,
+		selection_manager,
+		source.global_position,
+		true
+	)
 	await process_frame
 	_send_right_button(
 		main,
 		selection_manager,
 		construction_site.global_position,
-		true
+		false
 	)
 	await process_frame
-	if selection_manager.is_haul_planning():
-		_fail("A building without output incorrectly started haul planning.")
+	if selection_manager.is_command_planning():
+		_fail("Quick construction planning did not finish.")
 		return
-	if first._construction_target != construction_site:
-		_fail("An invalid haul source did not preserve its original command.")
+	if first._construction_job == null:
+		_fail("Quick haul to a site did not create a construction job.")
+		return
+	if second._construction_target != construction_site:
+		_fail("An excess villager did not go directly to construction.")
 		return
 
 	quit(0)

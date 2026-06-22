@@ -5,15 +5,15 @@ extends PanelContainer
 @onready var villager_name_label: Label = %VillagerNameLabel
 @onready var state_value_label: Label = %StateValueLabel
 @onready var stationary_value_label: Label = %StationaryValueLabel
-@onready var create_total_haul_button: Button = %CreateTotalHaulButton
+@onready var create_construction_button: Button = %create_construction_button
 
 var _selection_manager: Node
 
 
 func _ready() -> void:
 	_selection_manager = get_node(selection_manager_path)
-	create_total_haul_button.pressed.connect(
-		_selection_manager.begin_total_haul_planning
+	create_construction_button.pressed.connect(
+		_selection_manager.begin_construction_planning
 	)
 	visible = false
 
@@ -25,7 +25,7 @@ func _process(_delta: float) -> void:
 		return
 
 	visible = true
-	create_total_haul_button.disabled = _selection_manager.is_haul_planning()
+	create_construction_button.disabled = _selection_manager.is_command_planning()
 	if villagers.size() == 1:
 		var villager := villagers[0]
 		villager_name_label.text = villager.name
