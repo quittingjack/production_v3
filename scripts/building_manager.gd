@@ -1,7 +1,9 @@
 extends Node2D
 
 const BUILDING_SCENE := preload("res://scenes/building.tscn")
+const FACTORY_SCENE := preload("res://scenes/factory.tscn")
 const BUILDING_SIZE := Vector2(96.0, 96.0)
+const FACTORY_SIZE := Vector2(128.0, 96.0)
 const GRID_SIZE := 32.0
 const NAVIGATION_CLEARANCE := 36.0
 const VALID_COLOR := Color(0.25, 0.9, 0.4, 0.55)
@@ -11,8 +13,14 @@ const INVALID_COLOR := Color(0.95, 0.25, 0.25, 0.55)
 
 @onready var navigation_region: NavigationRegion2D = $"../NavigationRegion2D"
 @onready var buildings: Node2D = $"../Buildings"
+@onready var building_menu: PanelContainer = $"../Interface/BuildingMenu"
+@onready var storage_button: Button = $"../Interface/BuildingMenu/MenuContent/StorageButton"
+@onready var factory_button: Button = $"../Interface/BuildingMenu/MenuContent/FactoryButton"
+@onready var cancel_button: Button = $"../Interface/BuildingMenu/MenuContent/CancelButton"
 
 var _is_placing := false
+var _selected_scene: PackedScene
+var _selected_size := BUILDING_SIZE
 var _preview: Polygon2D
 var _preview_position := Vector2.ZERO
 var _placement_is_valid := false
@@ -21,6 +29,13 @@ var _placement_is_valid := false
 func _ready() -> void:
 	add_to_group(&"building_managers")
 	_create_preview()
+	storage_button.pressed.connect(
+		_start_placement.bind(BUILDING_SCENE, BUILDING_SIZE)
+	)
+	factory_button.pressed.connect(
+		_start_placement.bind(FACTORY_SCENE, FACTORY_SIZE)
+	)
+	cancel_button.pressed.connect(_close_building_menu)
 	_rebuild_navigation()
 
 
@@ -38,12 +53,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		var key_event := event as InputEventKey
 		if key_event.pressed and not key_event.echo and key_event.keycode == KEY_B:
-			_start_placement()
+			if _is_placing:
+				_cancel_placement()
+			_toggle_building_menu()
 			get_viewport().set_input_as_handled()
 			return
 
-		if _is_placing and key_event.pressed and key_event.keycode == KEY_ESCAPE:
-			_cancel_placement()
+		if key_event.pressed and key_event.keycode == KEY_ESCAPE:
+			if _is_placing:
+				_cancel_placement()
+			elif building_menu.visible:
+				_close_building_menu()
 			get_viewport().set_input_as_handled()
 			return
 
@@ -65,7 +85,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func is_placing() -> bool:
-	return _is_placing
+	return _is_placing or building_menu.visible
 
 
 func _create_preview() -> void:
@@ -78,8 +98,12 @@ func _create_preview() -> void:
 	add_child(_preview)
 
 
-func _start_placement() -> void:
+func _start_placement(scene: PackedScene, building_size: Vector2) -> void:
+	_selected_scene = scene
+	_selected_size = building_size
+	building_menu.hide()
 	_is_placing = true
+	_preview.polygon = _rectangle_polygon(_selected_size * 0.5)
 	_preview.visible = true
 	_preview_position = _snap_to_grid(get_global_mouse_position())
 	_preview.global_position = _preview_position
@@ -90,10 +114,13 @@ func _start_placement() -> void:
 func _cancel_placement() -> void:
 	_is_placing = false
 	_preview.visible = false
+	_selected_scene = null
 
 
 func _place_building() -> void:
-	var building := BUILDING_SCENE.instantiate() as Node2D
+	if not _selected_scene:
+		return
+	var building := _selected_scene.instantiate() as Node2D
 	building.position = _preview_position
 	buildings.add_child(building)
 	_cancel_placement()
@@ -105,12 +132,15 @@ func request_navigation_rebuild() -> void:
 
 
 func _can_place_at(world_position: Vector2) -> bool:
-	var building_rect := Rect2(world_position - BUILDING_SIZE * 0.5, BUILDING_SIZE)
+	var building_rect := Rect2(
+		world_position - _selected_size * 0.5,
+		_selected_size
+	)
 	if not navigation_bounds.encloses(building_rect):
 		return false
 
 	var shape := RectangleShape2D.new()
-	shape.size = BUILDING_SIZE
+	shape.size = _selected_size
 
 	var query := PhysicsShapeQueryParameters2D.new()
 	query.shape = shape
@@ -120,6 +150,14 @@ func _can_place_at(world_position: Vector2) -> bool:
 	query.collide_with_bodies = true
 
 	return get_world_2d().direct_space_state.intersect_shape(query, 1).is_empty()
+
+
+func _toggle_building_menu() -> void:
+	building_menu.visible = not building_menu.visible
+
+
+func _close_building_menu() -> void:
+	building_menu.hide()
 
 
 func _rebuild_navigation() -> void:

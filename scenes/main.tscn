@@ -36,6 +36,22 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_building_menu"]
+content_margin_left = 16.0
+content_margin_top = 14.0
+content_margin_right = 16.0
+content_margin_bottom = 14.0
+bg_color = Color(0.035, 0.055, 0.075, 0.94)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.88, 0.66, 0.28, 0.8)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
 [node name="Main" type="Node2D" unique_id=867135662]
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=2056613019]
@@ -111,7 +127,38 @@ offset_bottom = 65.0
 theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
 theme_override_font_sizes/font_size = 18
 theme_override_styles/normal = SubResource("StyleBoxFlat_help")
-text = "左鍵：單選／拖曳框選    右鍵空地：移動    右鍵木頭：採集    B：建造伐木場    建造時左鍵：放置、右鍵／Esc：取消    WASD：移動相機    滾輪：縮放"
+text = "左鍵：單選／拖曳框選    右鍵空地：移動    右鍵木頭：採集    B：建築選單    建造時左鍵：放置、右鍵／Esc：取消    WASD：移動相機    滾輪：縮放"
+
+[node name="BuildingMenu" type="PanelContainer" parent="Interface"]
+visible = false
+offset_left = 18.0
+offset_top = 82.0
+offset_right = 260.0
+offset_bottom = 262.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_building_menu")
+
+[node name="MenuContent" type="VBoxContainer" parent="Interface/BuildingMenu"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Interface/BuildingMenu/MenuContent"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.86, 0.56, 1)
+theme_override_font_sizes/font_size = 20
+text = "選擇建築"
+horizontal_alignment = 1
+
+[node name="StorageButton" type="Button" parent="Interface/BuildingMenu/MenuContent"]
+layout_mode = 2
+text = "木頭儲存場"
+
+[node name="FactoryButton" type="Button" parent="Interface/BuildingMenu/MenuContent"]
+layout_mode = 2
+text = "木材廠（5 木頭 → 1 木材）"
+
+[node name="CancelButton" type="Button" parent="Interface/BuildingMenu/MenuContent"]
+layout_mode = 2
+text = "取消"
 
 [node name="SelectedVillagerPanel" type="PanelContainer" parent="Interface" unique_id=144263876]
 anchors_preset = 1

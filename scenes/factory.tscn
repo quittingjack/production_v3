@@ -1,0 +1,83 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/factory.gd" id="1_factory"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_factory"]
+size = Vector2(128, 96)
+
+[node name="Factory" type="Node2D" groups=["buildings"]]
+script = ExtResource("1_factory")
+obstacle_size = Vector2(64, 48)
+interaction_range_multiplier = 2.0
+interaction_slot_clearance = 4.0
+interaction_slot_spacing = 24.0
+
+[node name="Body" type="Polygon2D" parent="."]
+color = Color(0.32, 0.38, 0.42, 1)
+polygon = PackedVector2Array(-64, -48, 64, -48, 64, 48, -64, 48)
+
+[node name="Roof" type="Polygon2D" parent="."]
+z_index = 1
+color = Color(0.5, 0.56, 0.6, 1)
+polygon = PackedVector2Array(-58, -42, 58, -42, 58, -18, -58, -18)
+
+[node name="Door" type="Polygon2D" parent="."]
+z_index = 1
+color = Color(0.13, 0.16, 0.18, 1)
+polygon = PackedVector2Array(-14, 12, 14, 12, 14, 48, -14, 48)
+
+[node name="Chimney" type="Polygon2D" parent="."]
+z_index = 1
+color = Color(0.25, 0.2, 0.18, 1)
+polygon = PackedVector2Array(32, -72, 50, -72, 50, -30, 32, -30)
+
+[node name="StorageLabel" type="Label" parent="."]
+visible = false
+
+[node name="InputLabel" type="Label" parent="."]
+z_index = 2
+offset_left = -76.0
+offset_top = -106.0
+offset_right = 76.0
+offset_bottom = -82.0
+theme_override_colors/font_color = Color(1, 0.9, 0.68, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 16
+text = "木頭：0/20"
+horizontal_alignment = 1
+
+[node name="OutputLabel" type="Label" parent="."]
+z_index = 2
+offset_left = -76.0
+offset_top = -84.0
+offset_right = 76.0
+offset_bottom = -60.0
+theme_override_colors/font_color = Color(0.76, 0.94, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 16
+text = "木材：0/10"
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="."]
+z_index = 2
+offset_left = -76.0
+offset_top = 58.0
+offset_right = 76.0
+offset_bottom = 82.0
+theme_override_colors/font_color = Color(0.88, 1, 0.76, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 15
+text = "等待木頭"
+horizontal_alignment = 1
+
+[node name="StaticBody2D" type="StaticBody2D" parent="."]
+collision_layer = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+shape = SubResource("RectangleShape2D_factory")
