@@ -68,6 +68,10 @@ func store_resource(type: StringName, amount: int) -> int:
 	return stored
 
 
+func get_output_resource_type() -> StringName:
+	return output_resource_type
+
+
 func get_output_amount(type: StringName = &"") -> int:
 	if type != &"" and type != output_resource_type:
 		return 0

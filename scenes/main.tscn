@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://d2u60khh5gtb3"]
 
-[ext_resource type="PackedScene" uid="uid://b2oy2v1vj5kc2" path="res://scenes/villager.tscn" id="1_0wfyh"]
+[ext_resource type="PackedScene" uid="uid://c52qve73gm2mg" path="res://scenes/villager.tscn" id="1_0wfyh"]
 [ext_resource type="Script" uid="uid://cll2wyhosdgc8" path="res://scripts/selection_manager.gd" id="2_sugp2"]
 [ext_resource type="Script" uid="uid://7dauewhoqo13" path="res://scripts/camera_controller.gd" id="3_camera"]
 [ext_resource type="Script" uid="uid://vd6mjevw2eis" path="res://scripts/building_manager.gd" id="4_building"]
@@ -113,6 +113,15 @@ width = 2.0
 default_color = Color(0.35, 0.78, 1, 0.95)
 antialiased = true
 
+[node name="HaulRoutePreview" type="Line2D" parent="SelectionManager"]
+visible = false
+width = 5.0
+default_color = Color(1, 0.76, 0.2, 0.9)
+joint_mode = 2
+begin_cap_mode = 2
+end_cap_mode = 2
+antialiased = true
+
 [node name="BuildingManager" type="Node2D" parent="." unique_id=918392300]
 z_index = 20
 script = ExtResource("4_building")
@@ -127,7 +136,23 @@ offset_bottom = 65.0
 theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
 theme_override_font_sizes/font_size = 18
 theme_override_styles/normal = SubResource("StyleBoxFlat_help")
-text = "左鍵：單選／拖曳框選    右鍵空地：移動    右鍵木頭：採集    B：建築選單    建造時左鍵：放置、右鍵／Esc：取消    WASD：移動相機    滾輪：縮放"
+text = "左鍵：單選／拖曳框選    右鍵空地：移動    右鍵木頭：採集    B：建築選單    村民面板：建立搬運作業    WASD：移動相機    滾輪：縮放"
+
+[node name="HaulPlanningLabel" type="Label" parent="Interface"]
+visible = false
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 520.0
+offset_top = 84.0
+offset_right = -520.0
+offset_bottom = 158.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.9, 0.58, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("StyleBoxFlat_help")
+text = "搬運規劃"
+horizontal_alignment = 1
 
 [node name="BuildingMenu" type="PanelContainer" parent="Interface"]
 visible = false
@@ -167,9 +192,8 @@ anchor_right = 1.0
 offset_left = -300.0
 offset_top = 18.0
 offset_right = -18.0
-offset_bottom = 154.0
+offset_bottom = 202.0
 grow_horizontal = 0
-mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_villager_panel")
 script = ExtResource("6_villager_ui")
 selection_manager_path = NodePath("../../SelectionManager")
@@ -222,3 +246,8 @@ theme_override_colors/font_color = Color(0.4, 0.9, 1, 1)
 theme_override_font_sizes/font_size = 16
 text = "true"
 horizontal_alignment = 2
+
+[node name="CreateHaulButton" type="Button" parent="Interface/SelectedVillagerPanel/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "建立搬運作業"

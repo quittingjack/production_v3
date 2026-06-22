@@ -25,6 +25,14 @@ enum WorkState {
 	MOVING_TO_BUILDING_APPROACH,
 	WAITING_FOR_BUILDING_SLOT,
 	MOVING_TO_BUILDING_SLOT,
+	HAUL_MOVING_TO_SOURCE_APPROACH,
+	HAUL_WAITING_FOR_SOURCE,
+	HAUL_MOVING_TO_SOURCE_SLOT,
+	HAUL_MOVING_OUTBOUND,
+	HAUL_MOVING_TO_DESTINATION_APPROACH,
+	HAUL_WAITING_FOR_DESTINATION,
+	HAUL_MOVING_TO_DESTINATION_SLOT,
+	HAUL_MOVING_RETURN,
 }
 
 @export var move_speed := 220.0
@@ -61,6 +69,14 @@ var _action_timer := 0.0
 var _slot_move_timer := 0.0
 var _resource_slot := -1
 var _building_slot := -1
+var _haul_source: Building
+var _haul_destination: Building
+var _haul_waypoints: Array[Vector2] = []
+var _haul_amount_per_trip := 1
+var _haul_resource_type: StringName = &""
+var _haul_route_index := 0
+var _haul_slot_host: Building
+var _haul_slot := -1
 var _selection_radius := BASE_SELECTION_RADIUS
 var _is_navigation_stationary := true
 
@@ -81,8 +97,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	_release_resource_slot()
-	_release_building_slot()
+	_release_all_slots()
 
 
 func _physics_process(delta: float) -> void:
@@ -132,6 +147,7 @@ func is_stationary() -> bool:
 
 
 func move_to(world_position: Vector2) -> void:
+	_cancel_haul_job()
 	_release_all_slots()
 	_resource_target = null
 	_building_target = null
@@ -145,6 +161,7 @@ func gather_from(resource_node: ResourceNode) -> void:
 	if not is_instance_valid(resource_node):
 		return
 
+	_cancel_haul_job()
 	if _backpack_amount > 0 and _backpack_resource_type != resource_node.resource_type:
 		_clear_backpack()
 
@@ -159,6 +176,46 @@ func gather_from(resource_node: ResourceNode) -> void:
 		return
 
 	_move_to_resource_approach()
+
+
+func start_haul_job(
+	source: Building,
+	destination: Building,
+	waypoints: Array[Vector2],
+	amount_per_trip: int
+) -> void:
+	if (
+		not is_instance_valid(source)
+		or not is_instance_valid(destination)
+		or source == destination
+	):
+		return
+
+	var resource_type := source.get_output_resource_type()
+	if resource_type == &"" or not destination.accepts_resource(resource_type):
+		return
+
+	_cancel_haul_job()
+	_release_all_slots()
+	_resource_target = null
+	_building_target = null
+	_work_resource_type = &""
+	_haul_source = source
+	_haul_destination = destination
+	_haul_waypoints = waypoints.duplicate()
+	_haul_amount_per_trip = clampi(amount_per_trip, 1, maxi(backpack_capacity, 1))
+	_haul_resource_type = resource_type
+	_haul_route_index = 0
+	_action_timer = 0.0
+
+	if _backpack_amount > 0:
+		if _backpack_resource_type == _haul_resource_type:
+			_begin_haul_outbound()
+		else:
+			_end_haul_job()
+		return
+
+	_begin_haul_source_approach()
 
 
 func _set_movement_target(world_position: Vector2) -> void:
@@ -186,6 +243,24 @@ func on_interaction_slots_rebuilt(
 	host: InteractionSlotHost,
 	new_slot_index: int
 ) -> void:
+	if host == _haul_slot_host:
+		_haul_slot = new_slot_index
+		if new_slot_index < 0:
+			if _state == WorkState.HAUL_MOVING_TO_SOURCE_SLOT:
+				_begin_haul_source_approach()
+			elif _state == WorkState.HAUL_MOVING_TO_DESTINATION_SLOT:
+				_begin_haul_destination_approach()
+			return
+		if (
+			_state == WorkState.HAUL_MOVING_TO_SOURCE_SLOT
+			or _state == WorkState.HAUL_MOVING_TO_DESTINATION_SLOT
+		):
+			_slot_move_timer = slot_move_timeout
+			_set_movement_target(
+				_haul_slot_host.get_interaction_slot_position(_haul_slot)
+			)
+		return
+
 	if host == _resource_target:
 		_resource_slot = new_slot_index
 		if new_slot_index < 0:
@@ -300,6 +375,43 @@ func _update_work(delta: float) -> void:
 			_slot_move_timer -= delta
 			if _slot_move_timer <= 0.0:
 				_recover_from_building_slot_stall()
+		WorkState.HAUL_MOVING_TO_SOURCE_APPROACH:
+			_update_haul_source_approach()
+		WorkState.HAUL_WAITING_FOR_SOURCE:
+			if not _is_haul_job_valid():
+				_end_haul_job()
+				return
+			_action_timer -= delta
+			if _action_timer <= 0.0:
+				_begin_haul_source_approach()
+		WorkState.HAUL_MOVING_TO_SOURCE_SLOT:
+			if not _is_haul_job_valid():
+				_end_haul_job()
+				return
+			_slot_move_timer -= delta
+			if _slot_move_timer <= 0.0:
+				_release_haul_slot()
+				_begin_haul_source_approach()
+		WorkState.HAUL_MOVING_OUTBOUND, WorkState.HAUL_MOVING_RETURN:
+			if not _is_haul_job_valid():
+				_end_haul_job()
+		WorkState.HAUL_MOVING_TO_DESTINATION_APPROACH:
+			_update_haul_destination_approach()
+		WorkState.HAUL_WAITING_FOR_DESTINATION:
+			if not _is_haul_job_valid():
+				_end_haul_job()
+				return
+			_action_timer -= delta
+			if _action_timer <= 0.0:
+				_begin_haul_destination_approach()
+		WorkState.HAUL_MOVING_TO_DESTINATION_SLOT:
+			if not _is_haul_job_valid():
+				_end_haul_job()
+				return
+			_slot_move_timer -= delta
+			if _slot_move_timer <= 0.0:
+				_release_haul_slot()
+				_begin_haul_destination_approach()
 
 
 func _arrive_at_target() -> void:
@@ -334,6 +446,24 @@ func _arrive_at_target() -> void:
 			else:
 				_release_building_slot()
 				_find_and_move_to_building()
+		WorkState.HAUL_MOVING_TO_SOURCE_APPROACH:
+			_update_haul_source_approach()
+		WorkState.HAUL_MOVING_TO_SOURCE_SLOT:
+			if _is_haul_job_valid() and _haul_slot >= 0:
+				_take_haul_output()
+			else:
+				_end_haul_job()
+		WorkState.HAUL_MOVING_OUTBOUND:
+			_advance_haul_outbound()
+		WorkState.HAUL_MOVING_TO_DESTINATION_APPROACH:
+			_update_haul_destination_approach()
+		WorkState.HAUL_MOVING_TO_DESTINATION_SLOT:
+			if _is_haul_job_valid() and _haul_slot >= 0:
+				_deposit_haul_output()
+			else:
+				_end_haul_job()
+		WorkState.HAUL_MOVING_RETURN:
+			_advance_haul_return()
 
 	_set_navigation_stationary(not _has_target)
 
@@ -684,9 +814,238 @@ func _is_building_usable(building) -> bool:
 	)
 
 
+func _begin_haul_source_approach() -> void:
+	_release_haul_slot()
+	if not _is_haul_job_valid():
+		_end_haul_job()
+		return
+	if _backpack_amount > 0:
+		_begin_haul_outbound()
+		return
+	if _haul_source.get_output_amount(_haul_resource_type) <= 0:
+		_state = WorkState.HAUL_WAITING_FOR_SOURCE
+		_action_timer = retry_interval
+		_stop_at_current_position()
+		return
+
+	_state = WorkState.HAUL_MOVING_TO_SOURCE_APPROACH
+	_update_haul_source_approach()
+
+
+func _update_haul_source_approach() -> void:
+	if not _is_haul_job_valid():
+		_end_haul_job()
+		return
+	if _haul_source.get_output_amount(_haul_resource_type) <= 0:
+		_state = WorkState.HAUL_WAITING_FOR_SOURCE
+		_action_timer = retry_interval
+		_stop_at_current_position()
+		return
+	if _haul_source.is_within_approach_clearance(global_position):
+		_try_reserve_haul_source_slot()
+		return
+	if (
+		not _has_target
+		or _target_position.distance_squared_to(_haul_source.global_position) > 1.0
+	):
+		_set_movement_target(_haul_source.global_position)
+
+
+func _try_reserve_haul_source_slot() -> void:
+	if not _is_haul_job_valid():
+		_end_haul_job()
+		return
+	if _haul_source.get_output_amount(_haul_resource_type) <= 0:
+		_state = WorkState.HAUL_WAITING_FOR_SOURCE
+		_action_timer = retry_interval
+		_stop_at_current_position()
+		return
+
+	var slot := _haul_source.reserve_interaction_slot(self, global_position)
+	if slot < 0:
+		_state = WorkState.HAUL_WAITING_FOR_SOURCE
+		_action_timer = retry_interval
+		_stop_at_current_position()
+		return
+
+	_haul_slot_host = _haul_source
+	_haul_slot = slot
+	_slot_move_timer = slot_move_timeout
+	_state = WorkState.HAUL_MOVING_TO_SOURCE_SLOT
+	_set_movement_target(_haul_source.get_interaction_slot_position(slot))
+
+
+func _take_haul_output() -> void:
+	var free_space := maxi(backpack_capacity - _backpack_amount, 0)
+	var requested := mini(_haul_amount_per_trip, free_space)
+	var taken := _haul_source.take_output(_haul_resource_type, requested)
+	_release_haul_slot()
+	if taken <= 0:
+		_state = WorkState.HAUL_WAITING_FOR_SOURCE
+		_action_timer = retry_interval
+		_stop_at_current_position()
+		return
+
+	_backpack_resource_type = _haul_resource_type
+	_backpack_amount += taken
+	_update_backpack_label()
+	_begin_haul_outbound()
+
+
+func _begin_haul_outbound() -> void:
+	if not _is_haul_job_valid():
+		_end_haul_job()
+		return
+	_haul_route_index = 0
+	if _haul_waypoints.is_empty():
+		_begin_haul_destination_approach()
+		return
+	_state = WorkState.HAUL_MOVING_OUTBOUND
+	_set_movement_target(_haul_waypoints[_haul_route_index])
+
+
+func _advance_haul_outbound() -> void:
+	_haul_route_index += 1
+	if _haul_route_index >= _haul_waypoints.size():
+		_begin_haul_destination_approach()
+		return
+	_state = WorkState.HAUL_MOVING_OUTBOUND
+	_set_movement_target(_haul_waypoints[_haul_route_index])
+
+
+func _begin_haul_destination_approach() -> void:
+	_release_haul_slot()
+	if not _is_haul_job_valid():
+		_end_haul_job()
+		return
+	if _backpack_amount <= 0:
+		_begin_haul_return()
+		return
+	if not _haul_destination.has_storage_space():
+		_state = WorkState.HAUL_WAITING_FOR_DESTINATION
+		_action_timer = retry_interval
+		_stop_at_current_position()
+		return
+
+	_state = WorkState.HAUL_MOVING_TO_DESTINATION_APPROACH
+	_update_haul_destination_approach()
+
+
+func _update_haul_destination_approach() -> void:
+	if not _is_haul_job_valid():
+		_end_haul_job()
+		return
+	if not _haul_destination.has_storage_space():
+		_state = WorkState.HAUL_WAITING_FOR_DESTINATION
+		_action_timer = retry_interval
+		_stop_at_current_position()
+		return
+	if _haul_destination.is_within_approach_clearance(global_position):
+		_try_reserve_haul_destination_slot()
+		return
+	if (
+		not _has_target
+		or _target_position.distance_squared_to(
+			_haul_destination.global_position
+		) > 1.0
+	):
+		_set_movement_target(_haul_destination.global_position)
+
+
+func _try_reserve_haul_destination_slot() -> void:
+	if not _is_haul_job_valid():
+		_end_haul_job()
+		return
+	if not _haul_destination.has_storage_space():
+		_state = WorkState.HAUL_WAITING_FOR_DESTINATION
+		_action_timer = retry_interval
+		_stop_at_current_position()
+		return
+
+	var slot := _haul_destination.reserve_interaction_slot(self, global_position)
+	if slot < 0:
+		_state = WorkState.HAUL_WAITING_FOR_DESTINATION
+		_action_timer = retry_interval
+		_stop_at_current_position()
+		return
+
+	_haul_slot_host = _haul_destination
+	_haul_slot = slot
+	_slot_move_timer = slot_move_timeout
+	_state = WorkState.HAUL_MOVING_TO_DESTINATION_SLOT
+	_set_movement_target(_haul_destination.get_interaction_slot_position(slot))
+
+
+func _deposit_haul_output() -> void:
+	var stored := _haul_destination.store_resource(
+		_backpack_resource_type,
+		_backpack_amount
+	)
+	_backpack_amount -= stored
+	_release_haul_slot()
+	if _backpack_amount > 0:
+		_update_backpack_label()
+		_state = WorkState.HAUL_WAITING_FOR_DESTINATION
+		_action_timer = retry_interval
+		_stop_at_current_position()
+		return
+
+	_clear_backpack()
+	_begin_haul_return()
+
+
+func _begin_haul_return() -> void:
+	if not _is_haul_job_valid():
+		_end_haul_job()
+		return
+	_haul_route_index = _haul_waypoints.size() - 1
+	if _haul_route_index < 0:
+		_begin_haul_source_approach()
+		return
+	_state = WorkState.HAUL_MOVING_RETURN
+	_set_movement_target(_haul_waypoints[_haul_route_index])
+
+
+func _advance_haul_return() -> void:
+	_haul_route_index -= 1
+	if _haul_route_index < 0:
+		_begin_haul_source_approach()
+		return
+	_state = WorkState.HAUL_MOVING_RETURN
+	_set_movement_target(_haul_waypoints[_haul_route_index])
+
+
+func _is_haul_job_valid() -> bool:
+	return (
+		is_instance_valid(_haul_source)
+		and not _haul_source.is_queued_for_deletion()
+		and is_instance_valid(_haul_destination)
+		and not _haul_destination.is_queued_for_deletion()
+		and _haul_source != _haul_destination
+		and _haul_source.get_output_resource_type() == _haul_resource_type
+		and _haul_destination.accepts_resource(_haul_resource_type)
+	)
+
+
+func _cancel_haul_job() -> void:
+	_release_haul_slot()
+	_haul_source = null
+	_haul_destination = null
+	_haul_waypoints.clear()
+	_haul_resource_type = &""
+	_haul_route_index = 0
+
+
+func _end_haul_job() -> void:
+	_cancel_haul_job()
+	_state = WorkState.IDLE
+	_stop_at_current_position()
+
+
 func _release_all_slots() -> void:
 	_release_resource_slot()
 	_release_building_slot()
+	_release_haul_slot()
 
 
 func _release_resource_slot() -> void:
@@ -699,6 +1058,13 @@ func _release_building_slot() -> void:
 	if is_instance_valid(_building_target) and _building_slot >= 0:
 		_building_target.release_interaction_slot(self)
 	_building_slot = -1
+
+
+func _release_haul_slot() -> void:
+	if is_instance_valid(_haul_slot_host) and _haul_slot >= 0:
+		_haul_slot_host.release_interaction_slot(self)
+	_haul_slot_host = null
+	_haul_slot = -1
 
 
 func _stop_at_current_position() -> void:
@@ -724,7 +1090,8 @@ func _update_backpack_label() -> void:
 	if _backpack_amount <= 0:
 		backpack_label.text = ""
 	else:
-		backpack_label.text = "木頭 %d/%d" % [
+		backpack_label.text = "%s %d/%d" % [
+			String(_backpack_resource_type),
 			_backpack_amount,
 			backpack_capacity,
 		]

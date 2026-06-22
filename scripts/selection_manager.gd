@@ -5,6 +5,8 @@ extends Node2D
 
 @onready var selection_fill: Polygon2D = $SelectionFill
 @onready var selection_border: Line2D = $SelectionBorder
+@onready var haul_route_preview: Line2D = $HaulRoutePreview
+@onready var haul_planning_label: Label = $"../Interface/HaulPlanningLabel"
 
 var _selected_villagers: Array[Villager] = []
 var _left_button_down := false
@@ -13,21 +15,40 @@ var _drag_start := Vector2.ZERO
 var _drag_current := Vector2.ZERO
 var _hovered_interaction_host: InteractionSlotHost
 
+var _is_haul_planning := false
+var _haul_villagers: Array[Villager] = []
+var _haul_source: Building
+var _haul_waypoints: Array[Vector2] = []
+var _haul_amount_per_trip := 1
+var _haul_max_amount := 1
+
 
 func _ready() -> void:
+	add_to_group(&"selection_managers")
 	_set_selection_box_visible(false)
+	haul_route_preview.visible = false
+	haul_planning_label.visible = false
 
 
 func _process(_delta: float) -> void:
+	var world_position := _screen_to_world(get_viewport().get_mouse_position())
+	if _is_haul_planning:
+		_update_haul_preview(world_position)
+		_set_hovered_interaction_host(_find_building_at(world_position))
+		return
+
 	if _is_building_placement_active():
 		_set_hovered_interaction_host(null)
 		return
 
-	var world_position := _screen_to_world(get_viewport().get_mouse_position())
 	_update_hovered_interaction_host(world_position)
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _is_haul_planning:
+		_handle_haul_planning_input(event)
+		return
+
 	if _is_building_placement_active():
 		_set_hovered_interaction_host(null)
 		return
@@ -50,6 +71,186 @@ func _unhandled_input(event: InputEvent) -> void:
 		var mouse_motion := event as InputEventMouseMotion
 		_update_left_action(_screen_to_world(mouse_motion.position))
 		get_viewport().set_input_as_handled()
+
+
+func begin_haul_planning() -> void:
+	if _is_building_placement_active():
+		return
+
+	_haul_villagers.clear()
+	_haul_max_amount = 0
+	for villager in _selected_villagers:
+		if not is_instance_valid(villager):
+			continue
+		_haul_villagers.append(villager)
+		if _haul_max_amount == 0:
+			_haul_max_amount = villager.backpack_capacity
+		else:
+			_haul_max_amount = mini(
+				_haul_max_amount,
+				villager.backpack_capacity
+			)
+
+	if _haul_villagers.is_empty():
+		return
+
+	_is_haul_planning = true
+	_haul_source = null
+	_haul_waypoints.clear()
+	_haul_amount_per_trip = clampi(1, 1, maxi(_haul_max_amount, 1))
+	haul_route_preview.clear_points()
+	haul_route_preview.visible = true
+	haul_planning_label.visible = true
+	_update_haul_planning_label()
+	_set_hovered_interaction_host(null)
+
+
+func is_haul_planning() -> bool:
+	return _is_haul_planning
+
+
+func get_selected_villagers() -> Array[Villager]:
+	var villagers: Array[Villager] = []
+	for villager in _selected_villagers:
+		if is_instance_valid(villager):
+			villagers.append(villager)
+	return villagers
+
+
+func get_single_selected_villager() -> Villager:
+	var villagers := get_selected_villagers()
+	if villagers.size() != 1:
+		return null
+	return villagers[0]
+
+
+func _handle_haul_planning_input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		if (
+			key_event.pressed
+			and not key_event.echo
+			and key_event.keycode == KEY_ESCAPE
+		):
+			_cancel_haul_planning()
+			get_viewport().set_input_as_handled()
+			return
+		if (
+			key_event.pressed
+			and not key_event.echo
+			and key_event.keycode == KEY_B
+		):
+			get_viewport().set_input_as_handled()
+			return
+
+	if event is not InputEventMouseButton:
+		return
+
+	var mouse_event := event as InputEventMouseButton
+	if not mouse_event.pressed:
+		get_viewport().set_input_as_handled()
+		return
+
+	if mouse_event.button_index == MOUSE_BUTTON_WHEEL_UP:
+		_haul_amount_per_trip = mini(
+			_haul_amount_per_trip + 1,
+			maxi(_haul_max_amount, 1)
+		)
+		_update_haul_planning_label()
+	elif mouse_event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		_haul_amount_per_trip = maxi(_haul_amount_per_trip - 1, 1)
+		_update_haul_planning_label()
+	elif mouse_event.button_index == MOUSE_BUTTON_RIGHT:
+		if not _haul_waypoints.is_empty():
+			_haul_waypoints.pop_back()
+	elif mouse_event.button_index == MOUSE_BUTTON_LEFT:
+		_add_haul_planning_point(_screen_to_world(mouse_event.position))
+	else:
+		return
+
+	get_viewport().set_input_as_handled()
+
+
+func _add_haul_planning_point(world_position: Vector2) -> void:
+	var building := _find_building_at(world_position)
+	if not is_instance_valid(_haul_source):
+		if not building:
+			return
+		var output_type := building.get_output_resource_type()
+		if output_type == &"":
+			return
+		_haul_source = building
+		_update_haul_planning_label()
+		return
+
+	if building:
+		if building == _haul_source:
+			return
+		var resource_type := _haul_source.get_output_resource_type()
+		if not building.accepts_resource(resource_type):
+			return
+		_finish_haul_planning(building)
+		return
+
+	_haul_waypoints.append(world_position)
+
+
+func _finish_haul_planning(destination: Building) -> void:
+	var assigned_villagers: Array[Villager] = []
+	for villager in _haul_villagers:
+		if is_instance_valid(villager):
+			assigned_villagers.append(villager)
+
+	for villager in assigned_villagers:
+		villager.start_haul_job(
+			_haul_source,
+			destination,
+			_haul_waypoints,
+			_haul_amount_per_trip
+		)
+
+	_cancel_haul_planning()
+
+
+func _cancel_haul_planning() -> void:
+	_is_haul_planning = false
+	_haul_villagers.clear()
+	_haul_source = null
+	_haul_waypoints.clear()
+	haul_route_preview.clear_points()
+	haul_route_preview.visible = false
+	haul_planning_label.visible = false
+	_set_hovered_interaction_host(null)
+
+
+func _update_haul_preview(mouse_world_position: Vector2) -> void:
+	haul_route_preview.clear_points()
+	if not is_instance_valid(_haul_source):
+		return
+
+	haul_route_preview.add_point(to_local(_haul_source.global_position))
+	for waypoint in _haul_waypoints:
+		haul_route_preview.add_point(to_local(waypoint))
+	haul_route_preview.add_point(to_local(mouse_world_position))
+
+
+func _update_haul_planning_label() -> void:
+	if not is_instance_valid(_haul_source):
+		haul_planning_label.text = (
+			"搬運規劃：左鍵選擇起點建築\n"
+			+ "滾輪調整每人載量：%d　Esc 取消"
+			% _haul_amount_per_trip
+		)
+		return
+
+	haul_planning_label.text = (
+		"搬運規劃：%s × %d／人／趟\n"
+		+ "左鍵空地新增中間點，左鍵相容建築完成\n"
+		+ "右鍵撤銷中間點　Esc 取消"
+	) % [
+		String(_haul_source.get_output_resource_type()),
+		_haul_amount_per_trip,
+	]
 
 
 func _begin_left_action(world_position: Vector2) -> void:
@@ -126,22 +327,8 @@ func _clear_selection() -> void:
 	_selected_villagers.clear()
 
 
-func get_single_selected_villager() -> Villager:
-	if _selected_villagers.size() != 1:
-		return null
-
-	var villager := _selected_villagers[0]
-	if not is_instance_valid(villager):
-		return null
-	return villager
-
-
 func _move_selection_to(world_position: Vector2) -> void:
-	var villagers: Array[Villager] = []
-	for villager in _selected_villagers:
-		if is_instance_valid(villager):
-			villagers.append(villager)
-
+	var villagers := get_selected_villagers()
 	if villagers.is_empty():
 		return
 
@@ -164,18 +351,12 @@ func _sort_villagers_by_position(
 		first_villager.global_position.y,
 		second_villager.global_position.y
 	):
-		return (
-			first_villager.global_position.y
-			< second_villager.global_position.y
-		)
+		return first_villager.global_position.y < second_villager.global_position.y
 	if not is_equal_approx(
 		first_villager.global_position.x,
 		second_villager.global_position.x
 	):
-		return (
-			first_villager.global_position.x
-			< second_villager.global_position.x
-		)
+		return first_villager.global_position.x < second_villager.global_position.x
 	return first_villager.get_instance_id() < second_villager.get_instance_id()
 
 
@@ -244,6 +425,7 @@ func _find_resource_at(world_position: Vector2) -> ResourceNode:
 				closest_distance = distance
 
 	return closest_resource
+
 
 func _find_building_at(world_position: Vector2) -> Building:
 	var closest_building: Building = null

@@ -10,7 +10,6 @@ radius = 4.8
 [node name="Villager" type="CharacterBody2D" unique_id=1939594127 groups=["villagers"]]
 collision_mask = 3
 script = ExtResource("1_script")
-backpack_capacity = 20
 avoidance_neighbor_distance = 90.0
 size_scale = 0.3
 
