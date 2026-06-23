@@ -7,6 +7,7 @@ enum Type {
 	HAUL,
 	CONSTRUCT,
 	CONSTRUCTION_JOB,
+	FACTORY_WORK,
 }
 
 var type := Type.MOVE
@@ -20,6 +21,7 @@ var amount_per_trip := 1
 var construction_site: ConstructionSite
 var construction_job: ConstructionJob
 var haul_material := false
+var factory: Factory
 
 
 static func create_move(target_position: Vector2) -> VillagerWorkOrder:
@@ -72,6 +74,13 @@ static func create_construction_job(
 	order.waypoints = job_waypoints.duplicate()
 	order.haul_material = should_haul_material
 	order.resource_type = job.resource_type
+	return order
+
+
+static func create_factory_work(target_factory: Factory) -> VillagerWorkOrder:
+	var order := VillagerWorkOrder.new()
+	order.type = Type.FACTORY_WORK
+	order.factory = target_factory
 	return order
 
 

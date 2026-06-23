@@ -24,6 +24,8 @@ var input_stored_amount := 0
 var output_stored_amount := 0
 var _is_producing := false
 var _production_time_left := 0.0
+var _worker: Villager
+var _worker_is_active := false
 
 
 func _ready() -> void:
@@ -34,11 +36,12 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if _is_producing:
+	_cleanup_worker()
+	if _is_producing and _worker_is_active:
 		_production_time_left = maxf(_production_time_left - delta, 0.0)
 		if _production_time_left <= 0.0:
 			_finish_production()
-	else:
+	elif not _is_producing and _worker_is_active:
 		_try_start_production()
 
 	_update_factory_labels()
@@ -98,6 +101,51 @@ func is_producing() -> bool:
 	return _is_producing
 
 
+func has_worker() -> bool:
+	_cleanup_worker()
+	return is_instance_valid(_worker)
+
+
+func has_vacancy() -> bool:
+	return not has_worker()
+
+
+func get_worker() -> Villager:
+	_cleanup_worker()
+	return _worker
+
+
+func hire_worker(worker: Villager) -> bool:
+	_cleanup_worker()
+	if not is_instance_valid(worker):
+		return false
+	if is_instance_valid(_worker) and _worker != worker:
+		return false
+	_worker = worker
+	_worker_is_active = false
+	_update_factory_labels()
+	return true
+
+
+func set_worker_active(worker: Villager, active: bool) -> void:
+	_cleanup_worker()
+	if worker != _worker:
+		return
+	_worker_is_active = active
+	if active:
+		_try_start_production()
+	_update_factory_labels()
+
+
+func release_worker(worker: Villager) -> void:
+	if worker != _worker:
+		return
+	_worker = null
+	_worker_is_active = false
+	release_interaction_slot(worker)
+	_update_factory_labels()
+
+
 func get_production_progress() -> float:
 	if not _is_producing:
 		return 0.0
@@ -106,7 +154,7 @@ func get_production_progress() -> float:
 
 
 func _try_start_production() -> void:
-	if _is_producing:
+	if _is_producing or not _worker_is_active:
 		return
 
 	var required_input := maxi(input_amount, 1)
@@ -151,7 +199,11 @@ func _update_factory_labels() -> void:
 		maxi(output_capacity, 0),
 	]
 
-	if _is_producing:
+	if not _worker_is_active:
+		status_label.visible = true
+		production_progress_bar.visible = false
+		status_label.text = "等待工人"
+	elif _is_producing:
 		status_label.visible = false
 		production_progress_bar.visible = true
 		production_progress_bar.value = get_production_progress() * 100.0
@@ -167,3 +219,10 @@ func _update_factory_labels() -> void:
 		status_label.visible = true
 		production_progress_bar.visible = false
 		status_label.text = "待機"
+
+
+func _cleanup_worker() -> void:
+	if is_instance_valid(_worker) and not _worker.is_queued_for_deletion():
+		return
+	_worker = null
+	_worker_is_active = false

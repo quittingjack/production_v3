@@ -36,10 +36,50 @@ func _run_test() -> void:
 
 	_send_right_button(main, selection_manager, source.global_position, true)
 	await process_frame
-	if not selection_manager.is_command_planning():
-		_fail("Right-button press on a valid source did not start haul planning.")
+	if selection_manager.is_command_planning():
+		_fail("Right-button press started haul planning before a gesture threshold.")
+		return
+	_send_right_motion(
+		main,
+		selection_manager,
+		source.global_position,
+		Vector2(4.0, 0.0)
+	)
+	if selection_manager.is_command_planning():
+		_fail("Sub-threshold pointer movement started haul planning.")
+		return
+	_send_right_button(main, selection_manager, source.global_position, false)
+	await process_frame
+	if (
+		first.get_current_work_type_name() != "MOVE"
+		or second.get_current_work_type_name() != "MOVE"
+	):
+		_fail("A short right click on a source did not issue a normal command.")
 		return
 
+	selection_manager.right_hold_threshold = 0.01
+	_send_right_button(main, selection_manager, source.global_position, true)
+	await create_timer(0.03).timeout
+	if not selection_manager.is_command_planning():
+		_fail("Holding the right button did not start haul planning.")
+		return
+	_send_right_button(main, selection_manager, source.global_position, false)
+	await process_frame
+	if selection_manager.is_command_planning():
+		_fail("Releasing a held gesture on its source did not cancel planning.")
+		return
+	selection_manager.right_hold_threshold = 0.35
+
+	_send_right_button(main, selection_manager, source.global_position, true)
+	_send_right_motion(
+		main,
+		selection_manager,
+		source.global_position,
+		Vector2(9.0, 0.0)
+	)
+	if not selection_manager.is_command_planning():
+		_fail("Dragging beyond eight screen pixels did not start haul planning.")
+		return
 	_send_right_button(main, selection_manager, destination.global_position, false)
 	await process_frame
 	if selection_manager.is_command_planning():
@@ -56,7 +96,12 @@ func _run_test() -> void:
 		return
 
 	_send_right_button(main, selection_manager, source.global_position, true)
-	await process_frame
+	_send_right_motion(
+		main,
+		selection_manager,
+		source.global_position,
+		Vector2(9.0, 0.0)
+	)
 	_send_right_button(
 		main,
 		selection_manager,
@@ -73,7 +118,12 @@ func _run_test() -> void:
 		return
 
 	_send_right_button(main, selection_manager, source.global_position, true)
-	await process_frame
+	_send_right_motion(
+		main,
+		selection_manager,
+		source.global_position,
+		Vector2(9.0, 0.0)
+	)
 	_send_right_button(main, selection_manager, source.global_position, false)
 	await process_frame
 	if selection_manager.is_command_planning():
@@ -81,7 +131,12 @@ func _run_test() -> void:
 		return
 
 	_send_right_button(main, selection_manager, source.global_position, true)
-	await process_frame
+	_send_right_motion(
+		main,
+		selection_manager,
+		source.global_position,
+		Vector2(9.0, 0.0)
+	)
 	_send_right_button(
 		main,
 		selection_manager,
@@ -112,7 +167,12 @@ func _run_test() -> void:
 		source.global_position,
 		true
 	)
-	await process_frame
+	_send_right_motion(
+		main,
+		selection_manager,
+		source.global_position,
+		Vector2(9.0, 0.0)
+	)
 	_send_right_button(
 		main,
 		selection_manager,
@@ -183,6 +243,21 @@ func _send_right_button(
 		selection_manager._unhandled_input(event)
 	else:
 		selection_manager._input(event)
+
+
+func _send_right_motion(
+	main: Node2D,
+	selection_manager: Node,
+	world_position: Vector2,
+	screen_offset: Vector2
+) -> void:
+	var event := InputEventMouseMotion.new()
+	event.button_mask = MOUSE_BUTTON_MASK_RIGHT
+	event.position = (
+		main.get_viewport().get_canvas_transform() * world_position
+		+ screen_offset
+	)
+	selection_manager._input(event)
 
 
 func _send_left_button(

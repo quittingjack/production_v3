@@ -38,6 +38,10 @@ enum WorkState {
 	CONSTRUCTION_WAITING_FOR_SLOT,
 	CONSTRUCTION_MOVING_TO_SLOT,
 	CONSTRUCTING,
+	FACTORY_MOVING_TO_APPROACH,
+	FACTORY_WAITING_FOR_SLOT,
+	FACTORY_MOVING_TO_SLOT,
+	FACTORY_WORKING,
 }
 
 @export var move_speed := 220.0
@@ -85,6 +89,8 @@ var _haul_slot_host: Building
 var _haul_slot := -1
 var _construction_target: ConstructionSite
 var _construction_slot := -1
+var _factory_target: Factory
+var _factory_slot := -1
 var _selection_radius := BASE_SELECTION_RADIUS
 var _is_navigation_stationary := true
 var _work_queue: Array[VillagerWorkOrder] = []
@@ -108,8 +114,10 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	_release_queued_factory_reservations()
 	_cancel_construction_job()
 	_cancel_haul_job()
+	_cancel_factory_work()
 	_release_all_slots()
 
 
@@ -221,6 +229,19 @@ func construct_at(site: ConstructionSite, queue_work := false) -> void:
 	_schedule_work(VillagerWorkOrder.create_construct(site), queue_work)
 
 
+func work_at_factory(factory: Factory, queue_work := false) -> bool:
+	if not is_instance_valid(factory):
+		return false
+	if factory.has_worker() and factory.get_worker() != self:
+		return false
+	if not queue_work:
+		_clear_work_queue_and_current()
+	if not factory.hire_worker(self):
+		return false
+	_schedule_work(VillagerWorkOrder.create_factory_work(factory), true)
+	return true
+
+
 func get_work_queue_count() -> int:
 	return _work_queue.size()
 
@@ -228,6 +249,10 @@ func get_work_queue_count() -> int:
 func get_current_work_type_name() -> String:
 	var order := _get_current_work_order()
 	return order.get_type_name() if order else ""
+
+
+func has_work_queued_after_current() -> bool:
+	return _current_work_index >= 0 and _work_queue.size() > 1
 
 
 func _schedule_work(order: VillagerWorkOrder, queue_work: bool) -> void:
@@ -241,14 +266,26 @@ func _schedule_work(order: VillagerWorkOrder, queue_work: bool) -> void:
 
 
 func _clear_work_queue_and_current() -> void:
+	_release_queued_factory_reservations()
 	_work_queue.clear()
 	_current_work_index = -1
 	_cancel_active_work()
 
 
+func _release_queued_factory_reservations() -> void:
+	for order in _work_queue:
+		if (
+			order.type == VillagerWorkOrder.Type.FACTORY_WORK
+			and is_instance_valid(order.factory)
+			and order.factory.get_worker() == self
+		):
+			order.factory.release_worker(self)
+
+
 func _cancel_active_work() -> void:
 	_cancel_construction_job()
 	_cancel_haul_job()
+	_cancel_factory_work()
 	_release_all_slots()
 	_resource_target = null
 	_building_target = null
@@ -261,6 +298,7 @@ func _cancel_active_work() -> void:
 func _start_move_order(world_position: Vector2) -> void:
 	_cancel_construction_job()
 	_cancel_haul_job()
+	_cancel_factory_work()
 	_release_all_slots()
 	_resource_target = null
 	_building_target = null
@@ -273,6 +311,7 @@ func _start_move_order(world_position: Vector2) -> void:
 func _start_gather_order(order: VillagerWorkOrder) -> void:
 	_cancel_construction_job()
 	_cancel_haul_job()
+	_cancel_factory_work()
 	if _backpack_amount > 0 and _backpack_resource_type != order.resource_type:
 		_clear_backpack()
 
@@ -305,6 +344,7 @@ func _start_haul_order(
 
 	_cancel_construction_job()
 	_cancel_haul_job()
+	_cancel_factory_work()
 	_release_all_slots()
 	_resource_target = null
 	_building_target = null
@@ -337,6 +377,7 @@ func _start_construction_job_order(
 
 	_cancel_construction_job()
 	_cancel_haul_job()
+	_cancel_factory_work()
 	_release_all_slots()
 	_resource_target = null
 	_building_target = null
@@ -370,6 +411,7 @@ func _start_construction_job_order(
 func _start_construct_order(site: ConstructionSite) -> void:
 	_cancel_construction_job()
 	_cancel_haul_job()
+	_cancel_factory_work()
 	_release_all_slots()
 	_resource_target = null
 	_building_target = null
@@ -378,6 +420,21 @@ func _start_construct_order(site: ConstructionSite) -> void:
 	_action_timer = 0.0
 	site.assign_builder(self)
 	_begin_construction_approach()
+
+
+func _start_factory_work_order(factory: Factory) -> void:
+	_cancel_construction_job()
+	_cancel_haul_job()
+	_release_all_slots()
+	_resource_target = null
+	_building_target = null
+	_work_resource_type = &""
+	_factory_target = factory
+	_action_timer = 0.0
+	if not _is_factory_work_valid():
+		_discard_invalid_current_work_order()
+		return
+	_begin_factory_approach()
 
 
 func _start_current_work_order() -> void:
@@ -411,6 +468,8 @@ func _start_current_work_order() -> void:
 					order.waypoints,
 					order.haul_material
 				)
+			VillagerWorkOrder.Type.FACTORY_WORK:
+				_start_factory_work_order(order.factory)
 		if _get_current_work_order() != order:
 			continue
 		_is_starting_work_order = false
@@ -442,6 +501,12 @@ func _is_work_order_valid(order: VillagerWorkOrder) -> bool:
 			return _is_construction_site_valid(order.construction_site)
 		VillagerWorkOrder.Type.CONSTRUCTION_JOB:
 			return order.construction_job and order.construction_job.is_valid()
+		VillagerWorkOrder.Type.FACTORY_WORK:
+			return (
+				is_instance_valid(order.factory)
+				and not order.factory.is_queued_for_deletion()
+				and order.factory.get_worker() == self
+			)
 	return false
 
 
@@ -606,6 +671,24 @@ func on_interaction_slots_rebuilt(
 					_construction_slot
 				)
 			)
+		return
+
+	if host == _factory_target:
+		if is_instance_valid(_factory_target):
+			_factory_target.set_worker_active(self, false)
+		_factory_slot = new_slot_index
+		if new_slot_index < 0:
+			_begin_factory_approach()
+			return
+		if (
+			_state == WorkState.FACTORY_MOVING_TO_SLOT
+			or _state == WorkState.FACTORY_WORKING
+		):
+			_state = WorkState.FACTORY_MOVING_TO_SLOT
+			_slot_move_timer = slot_move_timeout
+			_set_movement_target(
+				_factory_target.get_interaction_slot_position(_factory_slot)
+			)
 
 
 func contains_point(world_position: Vector2) -> bool:
@@ -751,6 +834,32 @@ func _update_work(delta: float) -> void:
 		WorkState.CONSTRUCTING:
 			if not _is_construction_site_valid(_construction_target):
 				_end_construction_job()
+		WorkState.FACTORY_MOVING_TO_APPROACH:
+			if not _is_factory_work_valid():
+				_end_factory_work()
+				return
+			if _factory_target.is_within_approach_clearance(global_position):
+				_try_reserve_factory_slot()
+			else:
+				_update_factory_approach_target()
+		WorkState.FACTORY_WAITING_FOR_SLOT:
+			if not _is_factory_work_valid():
+				_end_factory_work()
+				return
+			_action_timer -= delta
+			if _action_timer <= 0.0:
+				_try_reserve_factory_slot()
+		WorkState.FACTORY_MOVING_TO_SLOT:
+			if not _is_factory_work_valid():
+				_end_factory_work()
+				return
+			_slot_move_timer -= delta
+			if _slot_move_timer <= 0.0:
+				_release_factory_slot()
+				_begin_factory_approach()
+		WorkState.FACTORY_WORKING:
+			if not _is_factory_work_valid():
+				_end_factory_work()
 
 
 func _arrive_at_target() -> void:
@@ -814,6 +923,17 @@ func _arrive_at_target() -> void:
 				_construction_target.set_builder_active(self, true)
 			else:
 				_end_construction_job()
+		WorkState.FACTORY_MOVING_TO_APPROACH:
+			if _is_factory_work_valid():
+				_try_reserve_factory_slot()
+			else:
+				_end_factory_work()
+		WorkState.FACTORY_MOVING_TO_SLOT:
+			if _is_factory_work_valid() and _factory_slot >= 0:
+				_state = WorkState.FACTORY_WORKING
+				_factory_target.set_worker_active(self, true)
+			else:
+				_end_factory_work()
 
 	_set_navigation_stationary(not _has_target)
 
@@ -1243,6 +1363,64 @@ func on_construction_site_completed(site: ConstructionSite) -> void:
 	_complete_current_work_order()
 
 
+func _begin_factory_approach() -> void:
+	_release_factory_slot()
+	if not _is_factory_work_valid():
+		_end_factory_work()
+		return
+	_state = WorkState.FACTORY_MOVING_TO_APPROACH
+	_update_factory_approach_target()
+
+
+func _update_factory_approach_target() -> void:
+	if not _is_factory_work_valid():
+		return
+	var approach_target := _factory_target.global_position
+	if (
+		not _has_target
+		or _target_position.distance_squared_to(approach_target) > 1.0
+	):
+		_set_movement_target(approach_target)
+
+
+func _try_reserve_factory_slot() -> void:
+	if not _is_factory_work_valid():
+		_end_factory_work()
+		return
+	var slot := _factory_target.reserve_interaction_slot(self, global_position)
+	if slot < 0:
+		_state = WorkState.FACTORY_WAITING_FOR_SLOT
+		_action_timer = retry_interval
+		_stop_at_current_position()
+		return
+	_factory_slot = slot
+	_slot_move_timer = slot_move_timeout
+	_state = WorkState.FACTORY_MOVING_TO_SLOT
+	_set_movement_target(
+		_factory_target.get_interaction_slot_position(_factory_slot)
+	)
+
+
+func _is_factory_work_valid() -> bool:
+	return (
+		is_instance_valid(_factory_target)
+		and not _factory_target.is_queued_for_deletion()
+		and _factory_target.get_worker() == self
+	)
+
+
+func _cancel_factory_work() -> void:
+	if is_instance_valid(_factory_target):
+		_factory_target.set_worker_active(self, false)
+		_factory_target.release_worker(self)
+	_release_factory_slot()
+	_factory_target = null
+
+
+func _end_factory_work() -> void:
+	_discard_invalid_current_work_order()
+
+
 func _begin_haul_source_approach() -> void:
 	_release_haul_slot()
 	if not _is_haul_job_valid():
@@ -1510,6 +1688,7 @@ func _release_all_slots() -> void:
 	_release_building_slot()
 	_release_haul_slot()
 	_release_construction_slot()
+	_release_factory_slot()
 
 
 func _release_resource_slot() -> void:
@@ -1537,6 +1716,14 @@ func _release_construction_slot() -> void:
 		if _construction_slot >= 0:
 			_construction_target.release_interaction_slot(self)
 	_construction_slot = -1
+
+
+func _release_factory_slot() -> void:
+	if is_instance_valid(_factory_target):
+		_factory_target.set_worker_active(self, false)
+		if _factory_slot >= 0:
+			_factory_target.release_interaction_slot(self)
+	_factory_slot = -1
 
 
 func _stop_at_current_position() -> void:

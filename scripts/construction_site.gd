@@ -3,7 +3,8 @@ extends Building
 
 signal construction_completed(
 	site: ConstructionSite,
-	target_scene: PackedScene
+	target_scene: PackedScene,
+	auto_hire_candidates: Array[Villager]
 )
 
 @onready var site_body: Polygon2D = $SiteBody
@@ -59,8 +60,8 @@ func _process(delta: float) -> void:
 	_update_storage_label()
 	if _construction_time_left <= 0.0:
 		set_process(false)
-		_finish_builders()
-		construction_completed.emit(self, target_scene)
+		var candidates := _finish_builders()
+		construction_completed.emit(self, target_scene, candidates)
 
 
 func has_storage_space() -> bool:
@@ -156,8 +157,8 @@ func _try_start_construction() -> void:
 
 func _complete_immediately() -> void:
 	if _is_constructing and is_inside_tree():
-		_finish_builders()
-		construction_completed.emit(self, target_scene)
+		var candidates := _finish_builders()
+		construction_completed.emit(self, target_scene, candidates)
 
 
 func _cleanup_builders() -> void:
@@ -173,13 +174,21 @@ func _cleanup_builders() -> void:
 			_active_builders.remove_at(index)
 
 
-func _finish_builders() -> void:
+func _finish_builders() -> Array[Villager]:
 	var builders := _assigned_builders.duplicate()
+	var auto_hire_candidates: Array[Villager] = []
+	for builder in builders:
+		if (
+			is_instance_valid(builder)
+			and not builder.has_work_queued_after_current()
+		):
+			auto_hire_candidates.append(builder)
 	_assigned_builders.clear()
 	_active_builders.clear()
 	for builder in builders:
 		if is_instance_valid(builder):
 			builder.on_construction_site_completed(self)
+	return auto_hire_candidates
 
 
 func _apply_site_size(building_size: Vector2) -> void:

@@ -1,6 +1,8 @@
 extends Node2D
 
 @export var drag_threshold := 8.0
+@export var right_hold_threshold := 0.35
+@export var right_drag_threshold := 8.0
 @export var formation_spacing := 32.0
 
 @onready var selection_fill: Polygon2D = $SelectionFill
@@ -22,6 +24,11 @@ var _construction_waypoints: Array[Vector2] = []
 var _is_quick_haul_planning := false
 var _quick_haul_villagers: Array[Villager] = []
 var _quick_haul_source: Building
+var _is_right_action_pending := false
+var _right_action_source: Building
+var _right_action_world_position := Vector2.ZERO
+var _right_action_screen_position := Vector2.ZERO
+var _right_action_elapsed := 0.0
 
 
 func _ready() -> void:
@@ -31,7 +38,8 @@ func _ready() -> void:
 	haul_planning_label.visible = false
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_update_pending_right_action(delta)
 	var world_position := _screen_to_world(get_viewport().get_mouse_position())
 	if _is_demolition_active():
 		_set_hovered_interaction_host(
@@ -52,8 +60,30 @@ func _process(_delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if not _is_construction_planning and not _is_quick_haul_planning:
-		return
+	if _is_right_action_pending:
+		if event is InputEventMouseMotion:
+			_update_pending_right_drag(
+				(event as InputEventMouseMotion).position
+			)
+			get_viewport().set_input_as_handled()
+			return
+		if (
+			event is InputEventMouseButton
+			and event.button_index == MOUSE_BUTTON_RIGHT
+			and not event.pressed
+		):
+			_finish_pending_right_action(event as InputEventMouseButton)
+			get_viewport().set_input_as_handled()
+			return
+		if (
+			event is InputEventKey
+			and event.pressed
+			and not event.echo
+			and event.keycode == KEY_ESCAPE
+		):
+			_cancel_pending_right_action()
+			get_viewport().set_input_as_handled()
+			return
 
 	if (
 		_is_quick_haul_planning
@@ -62,6 +92,9 @@ func _input(event: InputEvent) -> void:
 		and not event.pressed
 	):
 		_handle_quick_haul_input(event)
+		return
+
+	if not _is_construction_planning and not _is_quick_haul_planning:
 		return
 
 	if (
@@ -105,7 +138,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		elif mouse_button.button_index == MOUSE_BUTTON_RIGHT:
 			if mouse_button.pressed:
-				if not _try_begin_quick_haul_planning(world_position):
+				if not _try_begin_pending_right_action(
+					world_position,
+					mouse_button.position
+				):
 					_command_selection_at(
 						world_position,
 						mouse_button.shift_pressed
@@ -155,6 +191,7 @@ func is_command_planning() -> bool:
 
 
 func cancel_command_planning() -> void:
+	_cancel_pending_right_action()
 	if _is_construction_planning:
 		_cancel_construction_planning()
 	if _is_quick_haul_planning:
@@ -341,13 +378,104 @@ func _update_construction_planning_label() -> void:
 	]
 
 
-func _try_begin_quick_haul_planning(world_position: Vector2) -> bool:
+func _try_begin_pending_right_action(
+	world_position: Vector2,
+	screen_position: Vector2
+) -> bool:
 	if _find_resource_at(world_position):
 		return false
 
 	var source := _find_building_at(world_position)
 	if (
 		not is_instance_valid(source)
+		or source.get_output_resource_type() == &""
+	):
+		return false
+
+	var has_selected_villager := false
+	for villager in _selected_villagers:
+		if is_instance_valid(villager):
+			has_selected_villager = true
+			break
+	if not has_selected_villager:
+		return false
+
+	_is_right_action_pending = true
+	_right_action_source = source
+	_right_action_world_position = world_position
+	_right_action_screen_position = screen_position
+	_right_action_elapsed = 0.0
+	return true
+
+
+func _update_pending_right_action(delta: float) -> void:
+	if not _is_right_action_pending:
+		return
+	if (
+		not is_instance_valid(_right_action_source)
+		or _right_action_source.is_queued_for_deletion()
+		or _is_demolition_active()
+		or _is_building_placement_active()
+	):
+		_cancel_pending_right_action()
+		return
+
+	_right_action_elapsed += delta
+	if _right_action_elapsed >= maxf(right_hold_threshold, 0.0):
+		_promote_pending_right_action()
+
+
+func _update_pending_right_drag(screen_position: Vector2) -> void:
+	if not _is_right_action_pending:
+		return
+	if (
+		_right_action_screen_position.distance_to(screen_position)
+		>= maxf(right_drag_threshold, 0.0)
+	):
+		_promote_pending_right_action()
+
+
+func _finish_pending_right_action(mouse_event: InputEventMouseButton) -> void:
+	if not _is_right_action_pending:
+		return
+
+	if (
+		_right_action_screen_position.distance_to(mouse_event.position)
+		>= maxf(right_drag_threshold, 0.0)
+	):
+		_promote_pending_right_action()
+		if _is_quick_haul_planning:
+			_finish_quick_haul_planning(
+				_find_building_at(_screen_to_world(mouse_event.position)),
+				mouse_event.shift_pressed
+			)
+		return
+
+	var command_position := _right_action_world_position
+	_cancel_pending_right_action()
+	_command_selection_at(command_position, mouse_event.shift_pressed)
+
+
+func _promote_pending_right_action() -> void:
+	if not _is_right_action_pending:
+		return
+	var source := _right_action_source
+	_cancel_pending_right_action()
+	_begin_quick_haul_planning(source)
+
+
+func _cancel_pending_right_action() -> void:
+	_is_right_action_pending = false
+	_right_action_source = null
+	_right_action_world_position = Vector2.ZERO
+	_right_action_screen_position = Vector2.ZERO
+	_right_action_elapsed = 0.0
+
+
+func _begin_quick_haul_planning(source: Building) -> bool:
+	if (
+		not is_instance_valid(source)
+		or source.is_queued_for_deletion()
 		or source.get_output_resource_type() == &""
 	):
 		return false
@@ -638,6 +766,24 @@ func _command_selection_at(
 
 	var building := _find_building_at(world_position)
 	if building:
+		if building is Factory and (building as Factory).has_vacancy():
+			var nearest_villager := _find_nearest_selected_villager(
+				building.global_position
+			)
+			var hired := (
+				is_instance_valid(nearest_villager)
+				and nearest_villager.work_at_factory(
+					building as Factory,
+					queue_work
+				)
+			)
+			for villager in _selected_villagers:
+				if (
+					is_instance_valid(villager)
+					and (not hired or villager != nearest_villager)
+				):
+					villager.move_to(building.global_position, queue_work)
+			return
 		for villager in _selected_villagers:
 			if is_instance_valid(villager):
 				if building is ConstructionSite:
@@ -650,6 +796,21 @@ func _command_selection_at(
 		return
 
 	_move_selection_to(world_position, queue_work)
+
+
+func _find_nearest_selected_villager(
+	world_position: Vector2
+) -> Villager:
+	var nearest_villager: Villager
+	var nearest_distance := INF
+	for villager in _selected_villagers:
+		if not is_instance_valid(villager):
+			continue
+		var distance := villager.global_position.distance_squared_to(world_position)
+		if distance < nearest_distance:
+			nearest_villager = villager
+			nearest_distance = distance
+	return nearest_villager
 
 
 func _find_resource_at(world_position: Vector2) -> ResourceNode:

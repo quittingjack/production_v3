@@ -246,7 +246,8 @@ func _place_building(continue_placement := false) -> void:
 
 func _on_construction_completed(
 	site: ConstructionSite,
-	target_scene: PackedScene
+	target_scene: PackedScene,
+	auto_hire_candidates: Array[Villager]
 ) -> void:
 	if not is_instance_valid(site) or not target_scene:
 		return
@@ -260,6 +261,10 @@ func _on_construction_completed(
 	buildings.remove_child(site)
 	site.queue_free()
 	buildings.add_child(completed_building)
+	if completed_building is Factory and not auto_hire_candidates.is_empty():
+		var candidate: Villager = auto_hire_candidates.pick_random()
+		if is_instance_valid(candidate):
+			candidate.work_at_factory(completed_building as Factory)
 	_rebuild_navigation()
 	building_completed.emit(completed_building)
 

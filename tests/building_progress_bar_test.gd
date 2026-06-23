@@ -16,6 +16,8 @@ func _run_test() -> void:
 	var factory := factory_scene.instantiate() as Factory
 	factory.production_duration = 0.4
 	root.add_child(factory)
+	var factory_worker := villager_scene.instantiate() as Villager
+	root.add_child(factory_worker)
 	await process_frame
 
 	var factory_status := factory.get_node("StatusLabel") as Label
@@ -26,6 +28,10 @@ func _run_test() -> void:
 		_fail("Factory progress bar must be hidden while waiting for input.")
 		return
 
+	if not factory.hire_worker(factory_worker):
+		_fail("Factory test worker could not be hired.")
+		return
+	factory.set_worker_active(factory_worker, true)
 	factory.store_resource(factory.input_resource_type, factory.input_amount)
 	var factory_start_progress := production_progress.value
 	if factory_status.visible or not production_progress.visible:
