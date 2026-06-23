@@ -106,7 +106,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif mouse_button.button_index == MOUSE_BUTTON_RIGHT:
 			if mouse_button.pressed:
 				if not _try_begin_quick_haul_planning(world_position):
-					_command_selection_at(world_position)
+					_command_selection_at(
+						world_position,
+						mouse_button.shift_pressed
+					)
 				get_viewport().set_input_as_handled()
 
 	elif event is InputEventMouseMotion and _left_button_down:
@@ -196,14 +199,20 @@ func _handle_construction_planning_input(event: InputEvent) -> void:
 		if not _construction_waypoints.is_empty():
 			_construction_waypoints.pop_back()
 	elif mouse_event.button_index == MOUSE_BUTTON_LEFT:
-		_add_construction_planning_point(_screen_to_world(mouse_event.position))
+		_add_construction_planning_point(
+			_screen_to_world(mouse_event.position),
+			mouse_event.shift_pressed
+		)
 	else:
 		return
 
 	get_viewport().set_input_as_handled()
 
 
-func _add_construction_planning_point(world_position: Vector2) -> void:
+func _add_construction_planning_point(
+	world_position: Vector2,
+	queue_work := false
+) -> void:
 	var building := _find_building_at(world_position)
 	if not is_instance_valid(_construction_source):
 		if not building:
@@ -225,13 +234,16 @@ func _add_construction_planning_point(world_position: Vector2) -> void:
 			_construction_source.get_output_resource_type()
 		):
 			return
-		_finish_construction_planning(site)
+		_finish_construction_planning(site, queue_work)
 		return
 
 	_construction_waypoints.append(world_position)
 
 
-func _finish_construction_planning(site: ConstructionSite) -> void:
+func _finish_construction_planning(
+	site: ConstructionSite,
+	queue_work := false
+) -> void:
 	var assigned_villagers: Array[Villager] = []
 	for villager in _construction_villagers:
 		if is_instance_valid(villager):
@@ -241,7 +253,8 @@ func _finish_construction_planning(site: ConstructionSite) -> void:
 		assigned_villagers,
 		_construction_source,
 		site,
-		_construction_waypoints
+		_construction_waypoints,
+		queue_work
 	)
 	_cancel_construction_planning()
 
@@ -250,7 +263,8 @@ func _start_construction_job(
 	villagers: Array[Villager],
 	source: Building,
 	site: ConstructionSite,
-	waypoints: Array[Vector2]
+	waypoints: Array[Vector2],
+	queue_work := false
 ) -> void:
 	if (
 		villagers.is_empty()
@@ -268,7 +282,12 @@ func _start_construction_job(
 		if not is_instance_valid(villager):
 			continue
 		var should_haul := remaining_capacity > 0
-		villager.start_construction_job(job, waypoints, should_haul)
+		villager.start_construction_job(
+			job,
+			waypoints,
+			should_haul,
+			queue_work
+		)
 		if should_haul:
 			remaining_capacity = maxi(
 				remaining_capacity - maxi(villager.backpack_capacity, 1),
@@ -315,6 +334,7 @@ func _update_construction_planning_label() -> void:
 	haul_planning_label.text = (
 		"建造規劃：搬運 %s\n"
 		+ "左鍵空地新增中間點，左鍵建築預定地完成\n"
+		+ "完成時按住 Shift 可加入排程\n"
 		+ "右鍵撤銷中間點　Esc 取消"
 	) % [
 		String(_construction_source.get_output_resource_type()),
@@ -345,7 +365,7 @@ func _try_begin_quick_haul_planning(world_position: Vector2) -> bool:
 	haul_route_preview.visible = true
 	haul_planning_label.text = (
 		"搬運規劃：%s，每位村民使用最大載量\n"
-		+ "在相容建築上放開右鍵　Esc 取消"
+		+ "在相容建築上放開右鍵，按住 Shift 可加入排程　Esc 取消"
 	) % String(source.get_output_resource_type())
 	haul_planning_label.visible = true
 	_set_hovered_interaction_host(source)
@@ -362,12 +382,16 @@ func _handle_quick_haul_input(event: InputEvent) -> void:
 		and not mouse_event.pressed
 	):
 		_finish_quick_haul_planning(
-			_find_building_at(_screen_to_world(mouse_event.position))
+			_find_building_at(_screen_to_world(mouse_event.position)),
+			mouse_event.shift_pressed
 		)
 	get_viewport().set_input_as_handled()
 
 
-func _finish_quick_haul_planning(destination: Building) -> void:
+func _finish_quick_haul_planning(
+	destination: Building,
+	queue_work := false
+) -> void:
 	if (
 		not is_instance_valid(_quick_haul_source)
 		or not is_instance_valid(destination)
@@ -388,7 +412,8 @@ func _finish_quick_haul_planning(destination: Building) -> void:
 			villagers,
 			_quick_haul_source,
 			destination as ConstructionSite,
-			[]
+			[],
+			queue_work
 		)
 		_cancel_quick_haul_planning()
 		return
@@ -399,7 +424,8 @@ func _finish_quick_haul_planning(destination: Building) -> void:
 				_quick_haul_source,
 				destination,
 				[],
-				maxi(villager.backpack_capacity, 1)
+				maxi(villager.backpack_capacity, 1),
+				queue_work
 			)
 	_cancel_quick_haul_planning()
 
@@ -528,7 +554,10 @@ func _clear_selection() -> void:
 	_selected_villagers.clear()
 
 
-func _move_selection_to(world_position: Vector2) -> void:
+func _move_selection_to(
+	world_position: Vector2,
+	queue_work := false
+) -> void:
 	var villagers := get_selected_villagers()
 	if villagers.is_empty():
 		return
@@ -540,7 +569,8 @@ func _move_selection_to(world_position: Vector2) -> void:
 	)
 	for villager_index in villagers.size():
 		villagers[villager_index].move_to(
-			formation_positions[villager_index]
+			formation_positions[villager_index],
+			queue_work
 		)
 
 
@@ -595,12 +625,15 @@ func _get_formation_positions(
 	return positions
 
 
-func _command_selection_at(world_position: Vector2) -> void:
+func _command_selection_at(
+	world_position: Vector2,
+	queue_work := false
+) -> void:
 	var resource_node := _find_resource_at(world_position)
 	if resource_node:
 		for villager in _selected_villagers:
 			if is_instance_valid(villager):
-				villager.gather_from(resource_node)
+				villager.gather_from(resource_node, queue_work)
 		return
 
 	var building := _find_building_at(world_position)
@@ -608,12 +641,15 @@ func _command_selection_at(world_position: Vector2) -> void:
 		for villager in _selected_villagers:
 			if is_instance_valid(villager):
 				if building is ConstructionSite:
-					villager.construct_at(building as ConstructionSite)
+					villager.construct_at(
+						building as ConstructionSite,
+						queue_work
+					)
 				else:
-					villager.move_to(building.global_position)
+					villager.move_to(building.global_position, queue_work)
 		return
 
-	_move_selection_to(world_position)
+	_move_selection_to(world_position, queue_work)
 
 
 func _find_resource_at(world_position: Vector2) -> ResourceNode:

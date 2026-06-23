@@ -57,6 +57,23 @@ func _run_test() -> void:
 
 	_send_right_button(main, selection_manager, source.global_position, true)
 	await process_frame
+	_send_right_button(
+		main,
+		selection_manager,
+		destination.global_position,
+		false,
+		true
+	)
+	await process_frame
+	if (
+		first.get_work_queue_count() != 2
+		or second.get_work_queue_count() != 2
+	):
+		_fail("Shift on quick-haul release did not append the job.")
+		return
+
+	_send_right_button(main, selection_manager, source.global_position, true)
+	await process_frame
 	_send_right_button(main, selection_manager, source.global_position, false)
 	await process_frame
 	if selection_manager.is_command_planning():
@@ -113,6 +130,38 @@ func _run_test() -> void:
 		_fail("An excess villager did not go directly to construction.")
 		return
 
+	var queued_site := site_scene.instantiate() as ConstructionSite
+	queued_site.initialize(
+		house_scene,
+		Vector2(96.0, 96.0),
+		&"wood",
+		0,
+		10.0
+	)
+	queued_site.position = Vector2(1480.0, 700.0)
+	buildings.add_child(queued_site)
+	await process_frame
+	selection_manager.begin_construction_planning()
+	_send_left_button(
+		main,
+		selection_manager,
+		source.global_position,
+		false
+	)
+	_send_left_button(
+		main,
+		selection_manager,
+		queued_site.global_position,
+		true
+	)
+	await process_frame
+	if (
+		first.get_work_queue_count() != 2
+		or second.get_work_queue_count() != 2
+	):
+		_fail("Shift on the final construction click did not append the job.")
+		return
+
 	quit(0)
 
 
@@ -120,11 +169,13 @@ func _send_right_button(
 	main: Node2D,
 	selection_manager: Node,
 	world_position: Vector2,
-	pressed: bool
+	pressed: bool,
+	shift_pressed := false
 ) -> void:
 	var event := InputEventMouseButton.new()
 	event.button_index = MOUSE_BUTTON_RIGHT
 	event.pressed = pressed
+	event.shift_pressed = shift_pressed
 	event.position = (
 		main.get_viewport().get_canvas_transform() * world_position
 	)
@@ -132,6 +183,22 @@ func _send_right_button(
 		selection_manager._unhandled_input(event)
 	else:
 		selection_manager._input(event)
+
+
+func _send_left_button(
+	main: Node2D,
+	selection_manager: Node,
+	world_position: Vector2,
+	shift_pressed: bool
+) -> void:
+	var event := InputEventMouseButton.new()
+	event.button_index = MOUSE_BUTTON_LEFT
+	event.pressed = true
+	event.shift_pressed = shift_pressed
+	event.position = (
+		main.get_viewport().get_canvas_transform() * world_position
+	)
+	selection_manager._unhandled_input(event)
 
 
 func _fail(message: String) -> void:

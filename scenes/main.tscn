@@ -149,7 +149,7 @@ offset_bottom = 65.0
 theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
 theme_override_font_sizes/font_size = 18
 theme_override_styles/normal = SubResource("StyleBoxFlat_help")
-text = "左鍵：單選／拖曳框選    右鍵空地：移動    右鍵木頭：採集    右鍵拖曳建築：搬運    B：建築選單    X：拆除模式    WASD：移動相機    滾輪：縮放"
+text = "左鍵：單選／拖曳框選    右鍵：移動／採集    右鍵拖曳建築：搬運    Shift：追加工作    B：建築選單    X：拆除模式    WASD：移動相機    滾輪：縮放"
 
 [node name="HaulPlanningLabel" type="Label" parent="Interface"]
 visible = false

@@ -21,6 +21,7 @@ enum WorkState {
 	WAITING_FOR_RESOURCE_SLOT,
 	MOVING_TO_RESOURCE_SLOT,
 	GATHERING,
+	SEARCHING_RESOURCE,
 	SEARCHING_BUILDING,
 	MOVING_TO_BUILDING_APPROACH,
 	WAITING_FOR_BUILDING_SLOT,
@@ -86,6 +87,9 @@ var _construction_target: ConstructionSite
 var _construction_slot := -1
 var _selection_radius := BASE_SELECTION_RADIUS
 var _is_navigation_stationary := true
+var _work_queue: Array[VillagerWorkOrder] = []
+var _current_work_index := -1
+var _is_starting_work_order := false
 
 
 func _enter_tree() -> void:
@@ -155,7 +159,106 @@ func is_stationary() -> bool:
 	return _is_navigation_stationary
 
 
-func move_to(world_position: Vector2) -> void:
+func move_to(world_position: Vector2, queue_work := false) -> void:
+	_schedule_work(VillagerWorkOrder.create_move(world_position), queue_work)
+
+
+func gather_from(resource_node: ResourceNode, queue_work := false) -> void:
+	if not is_instance_valid(resource_node):
+		return
+	_schedule_work(VillagerWorkOrder.create_gather(resource_node), queue_work)
+
+
+func start_haul_job(
+	source: Building,
+	destination: Building,
+	waypoints: Array[Vector2],
+	amount_per_trip: int,
+	queue_work := false
+) -> void:
+	if (
+		not is_instance_valid(source)
+		or not is_instance_valid(destination)
+		or source == destination
+	):
+		return
+
+	var resource_type := source.get_output_resource_type()
+	if resource_type == &"" or not destination.accepts_resource(resource_type):
+		return
+	_schedule_work(
+		VillagerWorkOrder.create_haul(
+			source,
+			destination,
+			waypoints,
+			amount_per_trip
+		),
+		queue_work
+	)
+
+
+func start_construction_job(
+	job: ConstructionJob,
+	waypoints: Array[Vector2],
+	haul_material: bool,
+	queue_work := false
+) -> void:
+	if not job or not job.is_valid():
+		return
+	_schedule_work(
+		VillagerWorkOrder.create_construction_job(
+			job,
+			waypoints,
+			haul_material
+		),
+		queue_work
+	)
+
+
+func construct_at(site: ConstructionSite, queue_work := false) -> void:
+	if not _is_construction_site_valid(site):
+		return
+	_schedule_work(VillagerWorkOrder.create_construct(site), queue_work)
+
+
+func get_work_queue_count() -> int:
+	return _work_queue.size()
+
+
+func get_current_work_type_name() -> String:
+	var order := _get_current_work_order()
+	return order.get_type_name() if order else ""
+
+
+func _schedule_work(order: VillagerWorkOrder, queue_work: bool) -> void:
+	if not queue_work:
+		_clear_work_queue_and_current()
+
+	_work_queue.append(order)
+	if _current_work_index < 0:
+		_current_work_index = 0
+		_start_current_work_order()
+
+
+func _clear_work_queue_and_current() -> void:
+	_work_queue.clear()
+	_current_work_index = -1
+	_cancel_active_work()
+
+
+func _cancel_active_work() -> void:
+	_cancel_construction_job()
+	_cancel_haul_job()
+	_release_all_slots()
+	_resource_target = null
+	_building_target = null
+	_work_resource_type = &""
+	_state = WorkState.IDLE
+	_action_timer = 0.0
+	_stop_at_current_position()
+
+
+func _start_move_order(world_position: Vector2) -> void:
 	_cancel_construction_job()
 	_cancel_haul_job()
 	_release_all_slots()
@@ -167,29 +270,27 @@ func move_to(world_position: Vector2) -> void:
 	_set_movement_target(world_position)
 
 
-func gather_from(resource_node: ResourceNode) -> void:
-	if not is_instance_valid(resource_node):
-		return
-
+func _start_gather_order(order: VillagerWorkOrder) -> void:
 	_cancel_construction_job()
 	_cancel_haul_job()
-	if _backpack_amount > 0 and _backpack_resource_type != resource_node.resource_type:
+	if _backpack_amount > 0 and _backpack_resource_type != order.resource_type:
 		_clear_backpack()
 
 	_release_all_slots()
-	_resource_target = resource_node
+	_resource_target = order.resource_target
 	_building_target = null
-	_work_resource_type = resource_node.resource_type
+	_work_resource_type = order.resource_type
 	_action_timer = 0.0
 
 	if _backpack_amount >= backpack_capacity:
 		_begin_delivery()
-		return
+	elif _is_resource_available(_resource_target):
+		_move_to_resource_approach()
+	elif not _move_to_alternative_resource(global_position):
+		_wait_for_gather_resource()
 
-	_move_to_resource_approach()
 
-
-func start_haul_job(
+func _start_haul_order(
 	source: Building,
 	destination: Building,
 	waypoints: Array[Vector2],
@@ -202,10 +303,6 @@ func start_haul_job(
 	):
 		return
 
-	var resource_type := source.get_output_resource_type()
-	if resource_type == &"" or not destination.accepts_resource(resource_type):
-		return
-
 	_cancel_construction_job()
 	_cancel_haul_job()
 	_release_all_slots()
@@ -216,7 +313,7 @@ func start_haul_job(
 	_haul_destination = destination
 	_haul_waypoints = waypoints.duplicate()
 	_haul_amount_per_trip = clampi(amount_per_trip, 1, maxi(backpack_capacity, 1))
-	_haul_resource_type = resource_type
+	_haul_resource_type = source.get_output_resource_type()
 	_haul_route_index = 0
 	_action_timer = 0.0
 
@@ -230,7 +327,7 @@ func start_haul_job(
 	_begin_haul_source_approach()
 
 
-func start_construction_job(
+func _start_construction_job_order(
 	job: ConstructionJob,
 	waypoints: Array[Vector2],
 	haul_material: bool
@@ -272,10 +369,7 @@ func start_construction_job(
 	_begin_haul_source_approach()
 
 
-func construct_at(site: ConstructionSite) -> void:
-	if not _is_construction_site_valid(site):
-		return
-
+func _start_construct_order(site: ConstructionSite) -> void:
 	_cancel_construction_job()
 	_cancel_haul_job()
 	_release_all_slots()
@@ -286,6 +380,128 @@ func construct_at(site: ConstructionSite) -> void:
 	_action_timer = 0.0
 	site.assign_builder(self)
 	_begin_construction_approach()
+
+
+func _start_current_work_order() -> void:
+	if _is_starting_work_order:
+		return
+	_is_starting_work_order = true
+	while not _work_queue.is_empty() and _current_work_index >= 0:
+		_current_work_index = posmod(_current_work_index, _work_queue.size())
+		var order := _work_queue[_current_work_index]
+		if not _is_work_order_valid(order):
+			_remove_current_work_order()
+			continue
+
+		match order.type:
+			VillagerWorkOrder.Type.MOVE:
+				_start_move_order(order.position)
+			VillagerWorkOrder.Type.GATHER:
+				_start_gather_order(order)
+			VillagerWorkOrder.Type.HAUL:
+				_start_haul_order(
+					order.source,
+					order.destination,
+					order.waypoints,
+					order.amount_per_trip
+				)
+			VillagerWorkOrder.Type.CONSTRUCT:
+				_start_construct_order(order.construction_site)
+			VillagerWorkOrder.Type.CONSTRUCTION_JOB:
+				_start_construction_job_order(
+					order.construction_job,
+					order.waypoints,
+					order.haul_material
+				)
+		if _get_current_work_order() != order:
+			continue
+		_is_starting_work_order = false
+		return
+
+	_current_work_index = -1
+	_state = WorkState.IDLE
+	_stop_at_current_position()
+	_is_starting_work_order = false
+
+
+func _is_work_order_valid(order: VillagerWorkOrder) -> bool:
+	match order.type:
+		VillagerWorkOrder.Type.MOVE:
+			return true
+		VillagerWorkOrder.Type.GATHER:
+			return order.resource_type != &""
+		VillagerWorkOrder.Type.HAUL:
+			return (
+				is_instance_valid(order.source)
+				and not order.source.is_queued_for_deletion()
+				and is_instance_valid(order.destination)
+				and not order.destination.is_queued_for_deletion()
+				and order.source != order.destination
+				and order.source.get_output_resource_type() == order.resource_type
+				and order.destination.accepts_resource(order.resource_type)
+			)
+		VillagerWorkOrder.Type.CONSTRUCT:
+			return _is_construction_site_valid(order.construction_site)
+		VillagerWorkOrder.Type.CONSTRUCTION_JOB:
+			return order.construction_job and order.construction_job.is_valid()
+	return false
+
+
+func _get_current_work_order() -> VillagerWorkOrder:
+	if (
+		_current_work_index < 0
+		or _current_work_index >= _work_queue.size()
+	):
+		return null
+	return _work_queue[_current_work_index]
+
+
+func _remove_current_work_order() -> void:
+	if (
+		_current_work_index < 0
+		or _current_work_index >= _work_queue.size()
+	):
+		_current_work_index = -1
+		return
+	_work_queue.remove_at(_current_work_index)
+	if _work_queue.is_empty():
+		_current_work_index = -1
+	elif _current_work_index >= _work_queue.size():
+		_current_work_index = 0
+
+
+func _complete_current_work_order() -> void:
+	_cancel_active_work()
+	_remove_current_work_order()
+	_start_current_work_order()
+
+
+func _advance_repeating_work_order() -> void:
+	_cancel_active_work()
+	if _work_queue.is_empty():
+		_current_work_index = -1
+	else:
+		_current_work_index = posmod(
+			_current_work_index + 1,
+			_work_queue.size()
+		)
+	_start_current_work_order()
+
+
+func _discard_invalid_current_work_order() -> void:
+	var order := _get_current_work_order()
+	_cancel_active_work()
+	if (
+		order
+		and (
+			order.type == VillagerWorkOrder.Type.HAUL
+			or order.type == VillagerWorkOrder.Type.CONSTRUCTION_JOB
+		)
+		and _backpack_amount > 0
+	):
+		_clear_backpack()
+	_remove_current_work_order()
+	_start_current_work_order()
 
 
 func _start_construction_waiting(site: ConstructionSite) -> void:
@@ -450,6 +666,11 @@ func _update_work(delta: float) -> void:
 			_action_timer -= delta
 			if _action_timer <= 0.0:
 				_gather_once()
+		WorkState.SEARCHING_RESOURCE:
+			_action_timer -= delta
+			if _action_timer <= 0.0:
+				if not _move_to_alternative_resource(global_position):
+					_wait_for_gather_resource()
 		WorkState.SEARCHING_BUILDING:
 			_action_timer -= delta
 			if _action_timer <= 0.0:
@@ -540,7 +761,7 @@ func _arrive_at_target() -> void:
 
 	match _state:
 		WorkState.MOVING:
-			_state = WorkState.IDLE
+			_complete_current_work_order()
 		WorkState.MOVING_TO_RESOURCE_APPROACH:
 			if _is_within_resource_slot_claim_distance():
 				_try_reserve_resource_slot()
@@ -719,9 +940,15 @@ func _handle_resource_unavailable() -> void:
 	if _backpack_amount > 0:
 		_begin_delivery()
 	elif not _move_to_alternative_resource(search_origin):
-		_state = WorkState.IDLE
-		_work_resource_type = &""
-		_stop_at_current_position()
+		_wait_for_gather_resource()
+
+
+func _wait_for_gather_resource() -> void:
+	_release_resource_slot()
+	_resource_target = null
+	_state = WorkState.SEARCHING_RESOURCE
+	_action_timer = retry_interval
+	_stop_at_current_position()
 
 
 func _move_to_alternative_resource(search_origin: Vector2) -> bool:
@@ -923,9 +1150,7 @@ func _return_to_resource_or_idle() -> void:
 		search_origin = _resource_target.global_position
 	_resource_target = null
 	if not _move_to_alternative_resource(search_origin):
-		_state = WorkState.IDLE
-		_work_resource_type = &""
-		_stop_at_current_position()
+		_wait_for_gather_resource()
 
 
 func _is_resource_available(resource_node) -> bool:
@@ -1011,19 +1236,13 @@ func _cancel_construction_job() -> void:
 
 
 func _end_construction_job() -> void:
-	_cancel_construction_job()
-	_state = WorkState.IDLE
-	_stop_at_current_position()
+	_discard_invalid_current_work_order()
 
 
 func on_construction_site_completed(site: ConstructionSite) -> void:
 	if site != _construction_target:
 		return
-	_release_construction_slot()
-	_construction_target = null
-	_construction_job = null
-	_state = WorkState.IDLE
-	_stop_at_current_position()
+	_complete_current_work_order()
 
 
 func _begin_haul_source_approach() -> void:
@@ -1223,7 +1442,7 @@ func _deposit_haul_output() -> void:
 	if _construction_job and _construction_job.is_fully_covered():
 		_start_construction_waiting(_construction_job.site)
 		return
-	_begin_haul_return()
+	_advance_repeating_work_order()
 
 
 func _begin_haul_return() -> void:
@@ -1276,9 +1495,7 @@ func _cancel_haul_job(clear_construction_job := true) -> void:
 
 
 func _end_haul_job() -> void:
-	_cancel_haul_job()
-	_state = WorkState.IDLE
-	_stop_at_current_position()
+	_discard_invalid_current_work_order()
 
 
 func _release_all_slots() -> void:
