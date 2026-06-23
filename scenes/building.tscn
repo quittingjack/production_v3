@@ -8,6 +8,7 @@ size = Vector2(96, 96)
 [node name="Building" type="Node2D" unique_id=174574568 groups=["buildings"]]
 script = ExtResource("1_building")
 max_storage = 10000
+construction_material_amount = 0
 obstacle_size = Vector2(32, 32)
 interaction_range_multiplier = 3.0
 interaction_slot_clearance = 4.0

@@ -33,6 +33,12 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	var world_position := _screen_to_world(get_viewport().get_mouse_position())
+	if _is_demolition_active():
+		_set_hovered_interaction_host(
+			_find_demolishable_building_at(world_position)
+		)
+		return
+
 	if _is_construction_planning or _is_quick_haul_planning:
 		_update_haul_preview(world_position)
 		_set_hovered_interaction_host(_find_building_at(world_position))
@@ -72,6 +78,10 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _is_demolition_active():
+		_handle_demolition_input(event)
+		return
+
 	if _is_construction_planning:
 		_handle_construction_planning_input(event)
 		return
@@ -139,6 +149,13 @@ func is_construction_planning() -> bool:
 
 func is_command_planning() -> bool:
 	return _is_construction_planning or _is_quick_haul_planning
+
+
+func cancel_command_planning() -> void:
+	if _is_construction_planning:
+		_cancel_construction_planning()
+	if _is_quick_haul_planning:
+		_cancel_quick_haul_planning()
 
 
 func get_selected_villagers() -> Array[Villager]:
@@ -397,6 +414,46 @@ func _cancel_quick_haul_planning() -> void:
 	_set_hovered_interaction_host(null)
 
 
+func _handle_demolition_input(event: InputEvent) -> void:
+	var building_manager := _get_building_manager()
+	if not building_manager:
+		return
+
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		if (
+			key_event.pressed
+			and not key_event.echo
+			and key_event.keycode == KEY_ESCAPE
+		):
+			building_manager.cancel_demolition()
+			_set_hovered_interaction_host(null)
+			get_viewport().set_input_as_handled()
+		return
+
+	if event is not InputEventMouseButton:
+		return
+
+	var mouse_event := event as InputEventMouseButton
+	if mouse_event.button_index == MOUSE_BUTTON_RIGHT:
+		if mouse_event.pressed:
+			building_manager.cancel_demolition()
+			_set_hovered_interaction_host(null)
+		get_viewport().set_input_as_handled()
+		return
+
+	if mouse_event.button_index != MOUSE_BUTTON_LEFT:
+		return
+
+	if mouse_event.pressed:
+		var world_position := _screen_to_world(mouse_event.position)
+		var target := _find_demolishable_building_at(world_position)
+		if is_instance_valid(target):
+			_set_hovered_interaction_host(null)
+			building_manager.demolish_building(target)
+	get_viewport().set_input_as_handled()
+
+
 func _begin_left_action(world_position: Vector2) -> void:
 	_left_button_down = true
 	_is_dragging = false
@@ -589,6 +646,25 @@ func _find_building_at(world_position: Vector2) -> Building:
 	return closest_building
 
 
+func _find_demolishable_building_at(
+	world_position: Vector2
+) -> BuildableBuilding:
+	var closest_building: BuildableBuilding = null
+	var closest_distance := INF
+
+	for node in get_tree().get_nodes_in_group(&"buildings"):
+		var building := node as BuildableBuilding
+		if building and building.contains_point(world_position):
+			var distance := building.global_position.distance_squared_to(
+				world_position
+			)
+			if distance < closest_distance:
+				closest_building = building
+				closest_distance = distance
+
+	return closest_building
+
+
 func _update_hovered_interaction_host(world_position: Vector2) -> void:
 	var hovered_host: InteractionSlotHost = _find_resource_at(world_position)
 	if not hovered_host:
@@ -644,7 +720,17 @@ func _screen_to_world(screen_position: Vector2) -> Vector2:
 
 
 func _is_building_placement_active() -> bool:
+	var building_manager := _get_building_manager()
+	return building_manager != null and building_manager.is_placing()
+
+
+func _is_demolition_active() -> bool:
+	var building_manager := _get_building_manager()
+	return building_manager != null and building_manager.is_demolishing()
+
+
+func _get_building_manager() -> Node:
 	var managers := get_tree().get_nodes_in_group(&"building_managers")
 	if managers.is_empty():
-		return false
-	return managers[0].is_placing()
+		return null
+	return managers[0]

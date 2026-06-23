@@ -13,6 +13,9 @@ const GRID_SIZE := 32.0
 const NAVIGATION_CLEARANCE := 36.0
 const VALID_COLOR := Color(0.25, 0.9, 0.4, 0.55)
 const INVALID_COLOR := Color(0.95, 0.25, 0.25, 0.55)
+const DEMOLITION_CURSOR_COLOR := Color(1.0, 0.12, 0.12, 0.95)
+const DEMOLITION_CURSOR_SIZE := 18.0
+const DEMOLITION_CURSOR_WIDTH := 5.0
 
 @export var navigation_bounds := Rect2(-1440.0, -1024.0, 3808.0, 2464.0)
 
@@ -30,11 +33,14 @@ var _selected_size := BUILDING_SIZE
 var _preview: Polygon2D
 var _preview_position := Vector2.ZERO
 var _placement_is_valid := false
+var _is_demolishing := false
+var _demolition_cursor: Node2D
 
 
 func _ready() -> void:
 	add_to_group(&"building_managers")
 	_create_preview()
+	_create_demolition_cursor()
 	storage_button.pressed.connect(
 		_start_placement.bind(BUILDING_SCENE, BUILDING_SIZE)
 	)
@@ -49,19 +55,34 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if not _is_placing:
-		return
+	if _is_demolishing:
+		_demolition_cursor.global_position = get_global_mouse_position()
 
-	_preview_position = _snap_to_grid(get_global_mouse_position())
-	_preview.global_position = _preview_position
-	_placement_is_valid = _can_place_at(_preview_position)
-	_preview.color = VALID_COLOR if _placement_is_valid else INVALID_COLOR
+	if _is_placing:
+		_preview_position = _snap_to_grid(get_global_mouse_position())
+		_preview.global_position = _preview_position
+		_placement_is_valid = _can_place_at(_preview_position)
+		_preview.color = VALID_COLOR if _placement_is_valid else INVALID_COLOR
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		var key_event := event as InputEventKey
+		if (
+			key_event.pressed
+			and not key_event.echo
+			and key_event.keycode == KEY_X
+		):
+			if _is_demolishing:
+				cancel_demolition()
+			else:
+				_start_demolition()
+			get_viewport().set_input_as_handled()
+			return
+
 		if key_event.pressed and not key_event.echo and key_event.keycode == KEY_B:
+			if _is_demolishing:
+				cancel_demolition()
 			if _is_placing:
 				_cancel_placement()
 			_toggle_building_menu()
@@ -69,7 +90,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 
 		if key_event.pressed and key_event.keycode == KEY_ESCAPE:
-			if _is_placing:
+			if _is_demolishing:
+				cancel_demolition()
+			elif _is_placing:
 				_cancel_placement()
 			elif building_menu.visible:
 				_close_building_menu()
@@ -86,7 +109,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if mouse_event.button_index == MOUSE_BUTTON_LEFT:
 		if _placement_is_valid:
-			_place_building()
+			_place_building(mouse_event.shift_pressed)
 		get_viewport().set_input_as_handled()
 	elif mouse_event.button_index == MOUSE_BUTTON_RIGHT:
 		_cancel_placement()
@@ -95,6 +118,37 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func is_placing() -> bool:
 	return _is_placing or building_menu.visible
+
+
+func is_demolishing() -> bool:
+	return _is_demolishing
+
+
+func cancel_demolition() -> void:
+	_is_demolishing = false
+	if is_instance_valid(_demolition_cursor):
+		_demolition_cursor.visible = false
+
+
+func demolish_building(target: BuildableBuilding) -> bool:
+	if (
+		not _is_demolishing
+		or not is_instance_valid(target)
+		or target.is_queued_for_deletion()
+		or target.get_parent() != buildings
+	):
+		return false
+
+	if target is ConstructionSite:
+		var site := target as ConstructionSite
+		var completion_callback := Callable(self, "_on_construction_completed")
+		if site.construction_completed.is_connected(completion_callback):
+			site.construction_completed.disconnect(completion_callback)
+
+	buildings.remove_child(target)
+	target.queue_free()
+	_rebuild_navigation()
+	return true
 
 
 func _create_preview() -> void:
@@ -107,7 +161,42 @@ func _create_preview() -> void:
 	add_child(_preview)
 
 
+func _create_demolition_cursor() -> void:
+	_demolition_cursor = Node2D.new()
+	_demolition_cursor.name = "DemolitionCursor"
+	_demolition_cursor.z_index = 100
+	_demolition_cursor.visible = false
+	add_child(_demolition_cursor)
+
+	for direction in [1.0, -1.0]:
+		var line := Line2D.new()
+		line.width = DEMOLITION_CURSOR_WIDTH
+		line.default_color = DEMOLITION_CURSOR_COLOR
+		line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		line.end_cap_mode = Line2D.LINE_CAP_ROUND
+		line.antialiased = true
+		line.points = PackedVector2Array([
+			Vector2(-DEMOLITION_CURSOR_SIZE, -DEMOLITION_CURSOR_SIZE * direction),
+			Vector2(DEMOLITION_CURSOR_SIZE, DEMOLITION_CURSOR_SIZE * direction),
+		])
+		_demolition_cursor.add_child(line)
+
+
+func _start_demolition() -> void:
+	if _is_placing:
+		_cancel_placement()
+	_close_building_menu()
+	for node in get_tree().get_nodes_in_group(&"selection_managers"):
+		if node.has_method("cancel_command_planning"):
+			node.cancel_command_planning()
+	_is_demolishing = true
+	_demolition_cursor.global_position = get_global_mouse_position()
+	_demolition_cursor.visible = true
+
+
 func _start_placement(scene: PackedScene, building_size: Vector2) -> void:
+	if _is_demolishing:
+		cancel_demolition()
 	_selected_scene = scene
 	_selected_size = building_size
 	building_menu.hide()
@@ -126,7 +215,7 @@ func _cancel_placement() -> void:
 	_selected_scene = null
 
 
-func _place_building() -> void:
+func _place_building(continue_placement := false) -> void:
 	if not _selected_scene:
 		return
 	var site := CONSTRUCTION_SITE_SCENE.instantiate() as ConstructionSite
@@ -146,7 +235,11 @@ func _place_building() -> void:
 	target_building.free()
 	site.construction_completed.connect(_on_construction_completed)
 	buildings.add_child(site)
-	_cancel_placement()
+	if continue_placement:
+		_placement_is_valid = false
+		_preview.color = INVALID_COLOR
+	else:
+		_cancel_placement()
 	_rebuild_navigation()
 	construction_started.emit(site)
 
