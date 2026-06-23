@@ -362,9 +362,7 @@ func _start_construction_job_order(
 				return
 			job.adjust_claim_after_pickup(self, _backpack_amount)
 			_begin_haul_outbound()
-		else:
-			_cancel_haul_job()
-		return
+			return
 
 	_begin_haul_source_approach()
 
@@ -1315,6 +1313,13 @@ func _try_reserve_haul_source_slot() -> void:
 
 func _take_haul_output() -> void:
 	var free_space := maxi(backpack_capacity - _backpack_amount, 0)
+	var replaces_construction_material := (
+		_construction_job
+		and _backpack_amount > 0
+		and _backpack_resource_type != _haul_resource_type
+	)
+	if replaces_construction_material:
+		free_space = maxi(backpack_capacity, 0)
 	var requested := mini(_haul_amount_per_trip, free_space)
 	if _construction_job:
 		requested = _construction_job.claim_amount(self, free_space)
@@ -1332,6 +1337,8 @@ func _take_haul_output() -> void:
 		_stop_at_current_position()
 		return
 
+	if replaces_construction_material:
+		_clear_backpack()
 	_backpack_resource_type = _haul_resource_type
 	_backpack_amount += taken
 	_update_backpack_label()
