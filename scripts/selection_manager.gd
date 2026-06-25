@@ -111,6 +111,9 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _handle_stop_input(event):
+		return
+
 	if _is_demolition_active():
 		_handle_demolition_input(event)
 		return
@@ -138,14 +141,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		elif mouse_button.button_index == MOUSE_BUTTON_RIGHT:
 			if mouse_button.pressed:
-				if not _try_begin_pending_right_action(
+				_command_selection_at(
 					world_position,
-					mouse_button.position
-				):
-					_command_selection_at(
-						world_position,
-						mouse_button.shift_pressed
-					)
+					mouse_button.shift_pressed,
+					mouse_button.ctrl_pressed
+				)
 				get_viewport().set_input_as_handled()
 
 	elif event is InputEventMouseMotion and _left_button_down:
@@ -204,6 +204,10 @@ func get_selected_villagers() -> Array[Villager]:
 		if is_instance_valid(villager):
 			villagers.append(villager)
 	return villagers
+
+
+func has_selected_villagers() -> bool:
+	return not get_selected_villagers().is_empty()
 
 
 func get_single_selected_villager() -> Villager:
@@ -682,9 +686,32 @@ func _clear_selection() -> void:
 	_selected_villagers.clear()
 
 
+func _handle_stop_input(event: InputEvent) -> bool:
+	if event is not InputEventKey:
+		return false
+	var key_event := event as InputEventKey
+	if (
+		not key_event.pressed
+		or key_event.echo
+		or key_event.keycode != KEY_S
+	):
+		return false
+
+	var villagers := get_selected_villagers()
+	if villagers.is_empty():
+		return false
+
+	cancel_command_planning()
+	for villager in villagers:
+		villager.stop_all_work()
+	get_viewport().set_input_as_handled()
+	return true
+
+
 func _move_selection_to(
 	world_position: Vector2,
-	queue_work := false
+	queue_work := false,
+	repeat_queue := false
 ) -> void:
 	var villagers := get_selected_villagers()
 	if villagers.is_empty():
@@ -698,7 +725,8 @@ func _move_selection_to(
 	for villager_index in villagers.size():
 		villagers[villager_index].move_to(
 			formation_positions[villager_index],
-			queue_work
+			queue_work,
+			repeat_queue
 		)
 
 
@@ -755,26 +783,34 @@ func _get_formation_positions(
 
 func _command_selection_at(
 	world_position: Vector2,
-	queue_work := false
+	queue_work := false,
+	repeat_queue := false
 ) -> void:
+	var should_queue := queue_work or repeat_queue
 	var resource_node := _find_resource_at(world_position)
 	if resource_node:
 		for villager in _selected_villagers:
 			if is_instance_valid(villager):
-				villager.gather_from(resource_node, queue_work)
+				villager.gather_from(
+					resource_node,
+					should_queue,
+					repeat_queue
+				)
 		return
 
 	var building := _find_building_at(world_position)
 	if building:
 		if building is Factory and (building as Factory).has_vacancy():
 			var nearest_villager := _find_nearest_selected_villager(
-				building.global_position
+				building.global_position,
+				building as Factory
 			)
 			var hired := (
 				is_instance_valid(nearest_villager)
 				and nearest_villager.work_at_factory(
 					building as Factory,
-					queue_work
+					should_queue,
+					repeat_queue
 				)
 			)
 			for villager in _selected_villagers:
@@ -782,29 +818,44 @@ func _command_selection_at(
 					is_instance_valid(villager)
 					and (not hired or villager != nearest_villager)
 				):
-					villager.move_to(building.global_position, queue_work)
+					villager.interact_with_building(
+						building,
+						should_queue,
+						repeat_queue
+					)
 			return
 		for villager in _selected_villagers:
 			if is_instance_valid(villager):
 				if building is ConstructionSite:
-					villager.construct_at(
+					villager.interact_with_construction_site(
 						building as ConstructionSite,
-						queue_work
+						should_queue,
+						repeat_queue
 					)
 				else:
-					villager.move_to(building.global_position, queue_work)
+					villager.interact_with_building(
+						building,
+						should_queue,
+						repeat_queue
+					)
 		return
 
-	_move_selection_to(world_position, queue_work)
+	_move_selection_to(world_position, should_queue, repeat_queue)
 
 
 func _find_nearest_selected_villager(
-	world_position: Vector2
+	world_position: Vector2,
+	factory: Factory = null
 ) -> Villager:
 	var nearest_villager: Villager
 	var nearest_distance := INF
 	for villager in _selected_villagers:
 		if not is_instance_valid(villager):
+			continue
+		if (
+			is_instance_valid(factory)
+			and not villager.can_work_at_factory_from_smart_click(factory)
+		):
 			continue
 		var distance := villager.global_position.distance_squared_to(world_position)
 		if distance < nearest_distance:

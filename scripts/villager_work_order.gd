@@ -8,6 +8,8 @@ enum Type {
 	CONSTRUCT,
 	CONSTRUCTION_JOB,
 	FACTORY_WORK,
+	INTERACT_BUILDING,
+	INTERACT_CONSTRUCTION_SITE,
 }
 
 var type := Type.MOVE
@@ -22,6 +24,7 @@ var construction_site: ConstructionSite
 var construction_job: ConstructionJob
 var haul_material := false
 var factory: Factory
+var building: Building
 
 
 static func create_move(target_position: Vector2) -> VillagerWorkOrder:
@@ -84,8 +87,25 @@ static func create_factory_work(target_factory: Factory) -> VillagerWorkOrder:
 	return order
 
 
+static func create_interact_building(target_building: Building) -> VillagerWorkOrder:
+	var order := VillagerWorkOrder.new()
+	order.type = Type.INTERACT_BUILDING
+	order.building = target_building
+	return order
+
+
+static func create_interact_construction_site(
+	site: ConstructionSite
+) -> VillagerWorkOrder:
+	var order := VillagerWorkOrder.new()
+	order.type = Type.INTERACT_CONSTRUCTION_SITE
+	order.construction_site = site
+	order.building = site
+	return order
+
+
 func is_repeating() -> bool:
-	return type == Type.GATHER or type == Type.HAUL
+	return type == Type.HAUL
 
 
 func get_type_name() -> String:

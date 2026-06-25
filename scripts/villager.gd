@@ -42,6 +42,17 @@ enum WorkState {
 	FACTORY_WAITING_FOR_SLOT,
 	FACTORY_MOVING_TO_SLOT,
 	FACTORY_WORKING,
+	INTERACTION_MOVING_TO_APPROACH,
+	INTERACTION_WAITING_FOR_SLOT,
+	INTERACTION_MOVING_TO_SLOT,
+}
+
+enum BuildingInteractionAction {
+	NONE,
+	APPROACH,
+	DEPOSIT,
+	TAKE,
+	DEPOSIT_AND_CONSTRUCT,
 }
 
 @export var move_speed := 220.0
@@ -91,11 +102,15 @@ var _construction_target: ConstructionSite
 var _construction_slot := -1
 var _factory_target: Factory
 var _factory_slot := -1
+var _interaction_target: Building
+var _interaction_slot := -1
+var _interaction_action := BuildingInteractionAction.NONE
 var _selection_radius := BASE_SELECTION_RADIUS
 var _is_navigation_stationary := true
 var _work_queue: Array[VillagerWorkOrder] = []
 var _current_work_index := -1
 var _is_starting_work_order := false
+var _repeat_work_queue := false
 
 
 func _enter_tree() -> void:
@@ -167,14 +182,30 @@ func is_stationary() -> bool:
 	return _is_navigation_stationary
 
 
-func move_to(world_position: Vector2, queue_work := false) -> void:
-	_schedule_work(VillagerWorkOrder.create_move(world_position), queue_work)
+func move_to(
+	world_position: Vector2,
+	queue_work := false,
+	repeat_queue := false
+) -> void:
+	_schedule_work(
+		VillagerWorkOrder.create_move(world_position),
+		queue_work,
+		repeat_queue
+	)
 
 
-func gather_from(resource_node: ResourceNode, queue_work := false) -> void:
+func gather_from(
+	resource_node: ResourceNode,
+	queue_work := false,
+	repeat_queue := false
+) -> void:
 	if not is_instance_valid(resource_node):
 		return
-	_schedule_work(VillagerWorkOrder.create_gather(resource_node), queue_work)
+	_schedule_work(
+		VillagerWorkOrder.create_gather(resource_node),
+		queue_work,
+		repeat_queue
+	)
 
 
 func start_haul_job(
@@ -182,7 +213,8 @@ func start_haul_job(
 	destination: Building,
 	waypoints: Array[Vector2],
 	amount_per_trip: int,
-	queue_work := false
+	queue_work := false,
+	repeat_queue := false
 ) -> void:
 	if (
 		not is_instance_valid(source)
@@ -201,7 +233,8 @@ func start_haul_job(
 			waypoints,
 			amount_per_trip
 		),
-		queue_work
+		queue_work,
+		repeat_queue
 	)
 
 
@@ -209,7 +242,8 @@ func start_construction_job(
 	job: ConstructionJob,
 	waypoints: Array[Vector2],
 	haul_material: bool,
-	queue_work := false
+	queue_work := false,
+	repeat_queue := false
 ) -> void:
 	if not job or not job.is_valid():
 		return
@@ -219,17 +253,30 @@ func start_construction_job(
 			waypoints,
 			haul_material
 		),
-		queue_work
+		queue_work,
+		repeat_queue
 	)
 
 
-func construct_at(site: ConstructionSite, queue_work := false) -> void:
+func construct_at(
+	site: ConstructionSite,
+	queue_work := false,
+	repeat_queue := false
+) -> void:
 	if not _is_construction_site_valid(site):
 		return
-	_schedule_work(VillagerWorkOrder.create_construct(site), queue_work)
+	_schedule_work(
+		VillagerWorkOrder.create_construct(site),
+		queue_work,
+		repeat_queue
+	)
 
 
-func work_at_factory(factory: Factory, queue_work := false) -> bool:
+func work_at_factory(
+	factory: Factory,
+	queue_work := false,
+	repeat_queue := false
+) -> bool:
 	if not is_instance_valid(factory):
 		return false
 	if factory.has_worker() and factory.get_worker() != self:
@@ -238,8 +285,54 @@ func work_at_factory(factory: Factory, queue_work := false) -> bool:
 		_clear_work_queue_and_current()
 	if not factory.hire_worker(self):
 		return false
-	_schedule_work(VillagerWorkOrder.create_factory_work(factory), true)
+	_schedule_work(
+		VillagerWorkOrder.create_factory_work(factory),
+		true,
+		repeat_queue
+	)
 	return true
+
+
+func interact_with_building(
+	building: Building,
+	queue_work := false,
+	repeat_queue := false
+) -> void:
+	if not _is_interaction_building_valid(building):
+		return
+	_schedule_work(
+		VillagerWorkOrder.create_interact_building(building),
+		queue_work,
+		repeat_queue
+	)
+
+
+func interact_with_construction_site(
+	site: ConstructionSite,
+	queue_work := false,
+	repeat_queue := false
+) -> void:
+	if not _is_construction_site_valid(site):
+		return
+	_schedule_work(
+		VillagerWorkOrder.create_interact_construction_site(site),
+		queue_work,
+		repeat_queue
+	)
+
+
+func stop_all_work() -> void:
+	_repeat_work_queue = false
+	_clear_work_queue_and_current()
+
+
+func can_work_at_factory_from_smart_click(factory: Factory) -> bool:
+	return (
+		is_instance_valid(factory)
+		and factory.has_vacancy()
+		and _backpack_amount <= 0
+		and not _can_take_output_from_building(factory)
+	)
 
 
 func get_work_queue_count() -> int:
@@ -255,9 +348,16 @@ func has_work_queued_after_current() -> bool:
 	return _current_work_index >= 0 and _work_queue.size() > 1
 
 
-func _schedule_work(order: VillagerWorkOrder, queue_work: bool) -> void:
+func _schedule_work(
+	order: VillagerWorkOrder,
+	queue_work: bool,
+	repeat_queue := false
+) -> void:
 	if not queue_work:
 		_clear_work_queue_and_current()
+		_repeat_work_queue = false
+	if repeat_queue:
+		_repeat_work_queue = true
 
 	_work_queue.append(order)
 	if _current_work_index < 0:
@@ -266,6 +366,7 @@ func _schedule_work(order: VillagerWorkOrder, queue_work: bool) -> void:
 
 
 func _clear_work_queue_and_current() -> void:
+	_repeat_work_queue = false
 	_release_queued_factory_reservations()
 	_work_queue.clear()
 	_current_work_index = -1
@@ -289,6 +390,8 @@ func _cancel_active_work() -> void:
 	_release_all_slots()
 	_resource_target = null
 	_building_target = null
+	_interaction_target = null
+	_interaction_action = BuildingInteractionAction.NONE
 	_work_resource_type = &""
 	_state = WorkState.IDLE
 	_action_timer = 0.0
@@ -302,6 +405,8 @@ func _start_move_order(world_position: Vector2) -> void:
 	_release_all_slots()
 	_resource_target = null
 	_building_target = null
+	_interaction_target = null
+	_interaction_action = BuildingInteractionAction.NONE
 	_work_resource_type = &""
 	_state = WorkState.MOVING
 	_action_timer = 0.0
@@ -313,7 +418,8 @@ func _start_gather_order(order: VillagerWorkOrder) -> void:
 	_cancel_haul_job()
 	_cancel_factory_work()
 	if _backpack_amount > 0 and _backpack_resource_type != order.resource_type:
-		_clear_backpack()
+		_complete_current_work_order()
+		return
 
 	_release_all_slots()
 	_resource_target = order.resource_target
@@ -322,11 +428,11 @@ func _start_gather_order(order: VillagerWorkOrder) -> void:
 	_action_timer = 0.0
 
 	if _backpack_amount >= backpack_capacity:
-		_begin_delivery()
+		_complete_current_work_order()
 	elif _is_resource_available(_resource_target):
 		_move_to_resource_approach()
-	elif not _move_to_alternative_resource(global_position):
-		_wait_for_gather_resource()
+	else:
+		_complete_current_work_order()
 
 
 func _start_haul_order(
@@ -437,6 +543,71 @@ func _start_factory_work_order(factory: Factory) -> void:
 	_begin_factory_approach()
 
 
+func _start_building_interaction_order(building: Building) -> void:
+	if not _is_interaction_building_valid(building):
+		_discard_invalid_current_work_order()
+		return
+
+	if _can_deposit_to_building(building):
+		_start_building_interaction(
+			building,
+			BuildingInteractionAction.DEPOSIT
+		)
+	elif _can_take_output_from_building(building):
+		_start_building_interaction(
+			building,
+			BuildingInteractionAction.TAKE
+		)
+	else:
+		_start_building_approach_only(building)
+
+
+func _start_construction_site_interaction_order(site: ConstructionSite) -> void:
+	if not _is_construction_site_valid(site):
+		_discard_invalid_current_work_order()
+		return
+
+	if _can_deposit_to_building(site):
+		_start_building_interaction(
+			site,
+			BuildingInteractionAction.DEPOSIT_AND_CONSTRUCT
+		)
+	else:
+		_start_construct_order(site)
+
+
+func _start_building_approach_only(building: Building) -> void:
+	_cancel_construction_job()
+	_cancel_haul_job()
+	_cancel_factory_work()
+	_release_all_slots()
+	_resource_target = null
+	_building_target = null
+	_interaction_target = building
+	_interaction_action = BuildingInteractionAction.APPROACH
+	_work_resource_type = &""
+	_action_timer = 0.0
+	_state = WorkState.MOVING
+	_set_movement_target(building.global_position)
+
+
+func _start_building_interaction(
+	building: Building,
+	action: BuildingInteractionAction
+) -> void:
+	_cancel_construction_job()
+	_cancel_haul_job()
+	_cancel_factory_work()
+	_release_all_slots()
+	_resource_target = null
+	_building_target = null
+	_interaction_target = building
+	_interaction_action = action
+	_work_resource_type = &""
+	_action_timer = 0.0
+	_begin_building_interaction_approach()
+
+
 func _start_current_work_order() -> void:
 	if _is_starting_work_order:
 		return
@@ -470,6 +641,12 @@ func _start_current_work_order() -> void:
 				)
 			VillagerWorkOrder.Type.FACTORY_WORK:
 				_start_factory_work_order(order.factory)
+			VillagerWorkOrder.Type.INTERACT_BUILDING:
+				_start_building_interaction_order(order.building)
+			VillagerWorkOrder.Type.INTERACT_CONSTRUCTION_SITE:
+				_start_construction_site_interaction_order(
+					order.construction_site
+				)
 		if _get_current_work_order() != order:
 			continue
 		_is_starting_work_order = false
@@ -507,6 +684,10 @@ func _is_work_order_valid(order: VillagerWorkOrder) -> bool:
 				and not order.factory.is_queued_for_deletion()
 				and order.factory.get_worker() == self
 			)
+		VillagerWorkOrder.Type.INTERACT_BUILDING:
+			return _is_interaction_building_valid(order.building)
+		VillagerWorkOrder.Type.INTERACT_CONSTRUCTION_SITE:
+			return _is_construction_site_valid(order.construction_site)
 	return false
 
 
@@ -529,11 +710,15 @@ func _remove_current_work_order() -> void:
 	_work_queue.remove_at(_current_work_index)
 	if _work_queue.is_empty():
 		_current_work_index = -1
+		_repeat_work_queue = false
 	elif _current_work_index >= _work_queue.size():
 		_current_work_index = 0
 
 
 func _complete_current_work_order() -> void:
+	if _repeat_work_queue and not _work_queue.is_empty():
+		_advance_repeating_work_order()
+		return
 	_cancel_active_work()
 	_remove_current_work_order()
 	_start_current_work_order()
@@ -688,6 +873,20 @@ func on_interaction_slots_rebuilt(
 			_slot_move_timer = slot_move_timeout
 			_set_movement_target(
 				_factory_target.get_interaction_slot_position(_factory_slot)
+			)
+		return
+
+	if host == _interaction_target:
+		_interaction_slot = new_slot_index
+		if new_slot_index < 0:
+			_begin_building_interaction_approach()
+			return
+		if _state == WorkState.INTERACTION_MOVING_TO_SLOT:
+			_slot_move_timer = slot_move_timeout
+			_set_movement_target(
+				_interaction_target.get_interaction_slot_position(
+					_interaction_slot
+				)
 			)
 
 
@@ -860,6 +1059,23 @@ func _update_work(delta: float) -> void:
 		WorkState.FACTORY_WORKING:
 			if not _is_factory_work_valid():
 				_end_factory_work()
+		WorkState.INTERACTION_MOVING_TO_APPROACH:
+			_update_building_interaction_approach()
+		WorkState.INTERACTION_WAITING_FOR_SLOT:
+			if not _is_current_building_interaction_valid():
+				_complete_current_work_order()
+				return
+			_action_timer -= delta
+			if _action_timer <= 0.0:
+				_try_reserve_building_interaction_slot()
+		WorkState.INTERACTION_MOVING_TO_SLOT:
+			if not _is_current_building_interaction_valid():
+				_complete_current_work_order()
+				return
+			_slot_move_timer -= delta
+			if _slot_move_timer <= 0.0:
+				_release_interaction_slot()
+				_begin_building_interaction_approach()
 
 
 func _arrive_at_target() -> void:
@@ -934,6 +1150,16 @@ func _arrive_at_target() -> void:
 				_factory_target.set_worker_active(self, true)
 			else:
 				_end_factory_work()
+		WorkState.INTERACTION_MOVING_TO_APPROACH:
+			_update_building_interaction_approach()
+		WorkState.INTERACTION_MOVING_TO_SLOT:
+			if (
+				_is_current_building_interaction_valid()
+				and _interaction_slot >= 0
+			):
+				_perform_building_interaction()
+			else:
+				_complete_current_work_order()
 
 	_set_navigation_stationary(not _has_target)
 
@@ -1033,7 +1259,7 @@ func _gather_once() -> void:
 
 	var free_space := backpack_capacity - _backpack_amount
 	if free_space <= 0:
-		_begin_delivery()
+		_complete_current_work_order()
 		return
 
 	var gathered := _resource_target.take_resource(1)
@@ -1043,22 +1269,15 @@ func _gather_once() -> void:
 		_update_backpack_label()
 
 	if _backpack_amount >= backpack_capacity:
-		_begin_delivery()
+		_complete_current_work_order()
 	elif not _is_resource_available(_resource_target):
-		_handle_resource_unavailable()
+		_complete_current_work_order()
 
 
 func _handle_resource_unavailable() -> void:
-	var search_origin := global_position
-	if is_instance_valid(_resource_target):
-		search_origin = _resource_target.global_position
-
 	_release_resource_slot()
 	_resource_target = null
-	if _backpack_amount > 0:
-		_begin_delivery()
-	elif not _move_to_alternative_resource(search_origin):
-		_wait_for_gather_resource()
+	_complete_current_work_order()
 
 
 func _wait_for_gather_resource() -> void:
@@ -1269,6 +1488,153 @@ func _return_to_resource_or_idle() -> void:
 	_resource_target = null
 	if not _move_to_alternative_resource(search_origin):
 		_wait_for_gather_resource()
+
+
+func _begin_building_interaction_approach() -> void:
+	_release_interaction_slot()
+	if not _is_current_building_interaction_valid():
+		_complete_current_work_order()
+		return
+	_state = WorkState.INTERACTION_MOVING_TO_APPROACH
+	_update_building_interaction_approach()
+
+
+func _update_building_interaction_approach() -> void:
+	if not _is_current_building_interaction_valid():
+		_complete_current_work_order()
+		return
+	if _interaction_target.is_within_approach_clearance(global_position):
+		_try_reserve_building_interaction_slot()
+		return
+	if (
+		not _has_target
+		or _target_position.distance_squared_to(
+			_interaction_target.global_position
+		) > 1.0
+	):
+		_set_movement_target(_interaction_target.global_position)
+
+
+func _try_reserve_building_interaction_slot() -> void:
+	if not _is_current_building_interaction_valid():
+		_complete_current_work_order()
+		return
+
+	var slot := _interaction_target.reserve_interaction_slot(
+		self,
+		global_position
+	)
+	if slot < 0:
+		_state = WorkState.INTERACTION_WAITING_FOR_SLOT
+		_action_timer = retry_interval
+		_stop_at_current_position()
+		return
+
+	_interaction_slot = slot
+	_slot_move_timer = slot_move_timeout
+	_state = WorkState.INTERACTION_MOVING_TO_SLOT
+	_set_movement_target(
+		_interaction_target.get_interaction_slot_position(_interaction_slot)
+	)
+
+
+func _perform_building_interaction() -> void:
+	var target := _interaction_target
+	var action := _interaction_action
+	_release_interaction_slot()
+
+	match action:
+		BuildingInteractionAction.DEPOSIT:
+			_deposit_to_interaction_target(target)
+			_complete_current_work_order()
+		BuildingInteractionAction.TAKE:
+			_take_from_interaction_target(target)
+			_complete_current_work_order()
+		BuildingInteractionAction.DEPOSIT_AND_CONSTRUCT:
+			_deposit_to_interaction_target(target)
+			var site := target as ConstructionSite
+			if _is_construction_site_valid(site):
+				_start_construction_waiting(site)
+			else:
+				_complete_current_work_order()
+		_:
+			_complete_current_work_order()
+
+
+func _deposit_to_interaction_target(building: Building) -> void:
+	if not _can_deposit_to_building(building):
+		return
+	var stored := building.store_resource(
+		_backpack_resource_type,
+		_backpack_amount
+	)
+	_backpack_amount -= stored
+	if _backpack_amount <= 0:
+		_clear_backpack()
+	else:
+		_update_backpack_label()
+
+
+func _take_from_interaction_target(building: Building) -> void:
+	if not _can_take_output_from_building(building):
+		return
+	var output_type := building.get_output_resource_type()
+	var free_space := maxi(backpack_capacity - _backpack_amount, 0)
+	var taken := building.take_output(output_type, free_space)
+	if taken <= 0:
+		return
+	_backpack_resource_type = output_type
+	_backpack_amount += taken
+	_update_backpack_label()
+
+
+func _can_deposit_to_building(building: Building) -> bool:
+	return (
+		_is_interaction_building_valid(building)
+		and _backpack_amount > 0
+		and building.accepts_resource(_backpack_resource_type)
+		and building.has_storage_space()
+	)
+
+
+func _can_take_output_from_building(building: Building) -> bool:
+	if not _is_interaction_building_valid(building):
+		return false
+	var output_type := building.get_output_resource_type()
+	if output_type == &"":
+		return false
+	if building.get_output_amount(output_type) <= 0:
+		return false
+	if _backpack_amount >= backpack_capacity:
+		return false
+	return _backpack_amount <= 0 or _backpack_resource_type == output_type
+
+
+func _is_current_building_interaction_valid() -> bool:
+	if not _is_interaction_building_valid(_interaction_target):
+		return false
+	match _interaction_action:
+		BuildingInteractionAction.DEPOSIT:
+			return _can_deposit_to_building(_interaction_target)
+		BuildingInteractionAction.TAKE:
+			return _can_take_output_from_building(_interaction_target)
+		BuildingInteractionAction.DEPOSIT_AND_CONSTRUCT:
+			return (
+				_can_deposit_to_building(_interaction_target)
+				or _is_construction_site_valid(
+					_interaction_target as ConstructionSite
+				)
+			)
+		BuildingInteractionAction.APPROACH:
+			return true
+	return false
+
+
+func _is_interaction_building_valid(building) -> bool:
+	return (
+		is_instance_valid(building)
+		and not building.is_queued_for_deletion()
+	)
 
 
 func _is_resource_available(resource_node) -> bool:
@@ -1689,6 +2055,7 @@ func _release_all_slots() -> void:
 	_release_haul_slot()
 	_release_construction_slot()
 	_release_factory_slot()
+	_release_interaction_slot()
 
 
 func _release_resource_slot() -> void:
@@ -1724,6 +2091,12 @@ func _release_factory_slot() -> void:
 		if _factory_slot >= 0:
 			_factory_target.release_interaction_slot(self)
 	_factory_slot = -1
+
+
+func _release_interaction_slot() -> void:
+	if is_instance_valid(_interaction_target) and _interaction_slot >= 0:
+		_interaction_target.release_interaction_slot(self)
+	_interaction_slot = -1
 
 
 func _stop_at_current_position() -> void:

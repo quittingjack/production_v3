@@ -35,11 +35,11 @@ func _run_test() -> void:
 	villager.gather_from(empty_resource)
 	villager.move_to(Vector2(300.0, 0.0), true)
 	if (
-		villager.get_current_work_type_name() != "GATHER"
-		or villager.get_work_queue_count() != 2
-		or villager.get_state_name() != "SEARCHING_RESOURCE"
+		villager.get_current_work_type_name() != "MOVE"
+		or villager.get_work_queue_count() != 1
+		or villager._target_position != Vector2(300.0, 0.0)
 	):
-		_fail("Gathering without resources did not block later queued work.")
+		_fail("Empty finite gather did not advance to the next queued work.")
 		return
 
 	villager.move_to(Vector2(400.0, 0.0))
@@ -77,6 +77,33 @@ func _run_test() -> void:
 			_fail("Repeating haul order did not follow A-B-C-A-B.")
 			return
 		villager._advance_repeating_work_order()
+
+	villager.move_to(Vector2(600.0, 0.0))
+	villager.move_to(Vector2(700.0, 0.0), true, true)
+	if villager.get_work_queue_count() != 2:
+		_fail("Ctrl move did not append to the work queue.")
+		return
+	villager._complete_current_work_order()
+	if (
+		villager.get_work_queue_count() != 2
+		or villager._target_position != Vector2(700.0, 0.0)
+	):
+		_fail("Ctrl queue did not preserve orders while advancing.")
+		return
+	villager._complete_current_work_order()
+	if (
+		villager.get_work_queue_count() != 2
+		or villager._target_position != Vector2(600.0, 0.0)
+	):
+		_fail("Ctrl queue did not loop back to the first order.")
+		return
+	villager.stop_all_work()
+	if (
+		villager.get_work_queue_count() != 0
+		or villager.get_state_name() != "IDLE"
+	):
+		_fail("Stopping did not clear the queue and idle the villager.")
+		return
 
 	var site := site_scene.instantiate() as ConstructionSite
 	site.initialize(house_scene, Vector2(96.0, 96.0), &"wood", 0, 1.0)
