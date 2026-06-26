@@ -1,37 +1,40 @@
 [gd_scene format=3 uid="uid://d2u0fto2t0mfr"]
 
-[ext_resource type="Script" uid="uid://hxd7q0mxy3gl" path="res://scripts/house.gd" id="1_house"]
+[ext_resource type="Script" path="res://scripts/building_root.gd" id="1_root"]
+[ext_resource type="Script" path="res://scripts/visual_component.gd" id="2_visual"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_house"]
 size = Vector2(96, 96)
 
-[node name="House" type="Node2D" unique_id=2030416023 groups=["buildings"]]
-script = ExtResource("1_house")
-construction_resource_type = &"lumber"
-construction_material_amount = 3
-obstacle_size = Vector2(32, 32)
-interaction_range_multiplier = 2.0
+[node name="HouseBuilding" type="Node2D"]
+script = ExtResource("1_root")
+footprint_size = Vector2(96, 96)
 
-[node name="Body" type="Polygon2D" parent="." unique_id=901349936]
+[node name="VisualComponent" type="Node2D" parent="."]
+script = ExtResource("2_visual")
+collision_size = Vector2(96, 96)
+interaction_size = Vector2(96, 96)
+
+[node name="Body" type="Polygon2D" parent="VisualComponent"]
 color = Color(0.72, 0.58, 0.38, 1)
 polygon = PackedVector2Array(-48, -32, 48, -32, 48, 48, -48, 48)
 
-[node name="Roof" type="Polygon2D" parent="." unique_id=662239564]
+[node name="Roof" type="Polygon2D" parent="VisualComponent"]
 z_index = 1
 color = Color(0.62, 0.2, 0.16, 1)
 polygon = PackedVector2Array(-56, -32, 0, -72, 56, -32)
 
-[node name="Door" type="Polygon2D" parent="." unique_id=435857092]
+[node name="Door" type="Polygon2D" parent="VisualComponent"]
 z_index = 1
 color = Color(0.24, 0.13, 0.07, 1)
 polygon = PackedVector2Array(-11, 12, 11, 12, 11, 48, -11, 48)
 
-[node name="Window" type="Polygon2D" parent="." unique_id=1963530292]
+[node name="Window" type="Polygon2D" parent="VisualComponent"]
 z_index = 1
 color = Color(0.5, 0.82, 0.92, 1)
 polygon = PackedVector2Array(20, -12, 38, -12, 38, 8, 20, 8)
 
-[node name="StatusLabel" type="Label" parent="." unique_id=1582536947]
+[node name="StatusLabel" type="Label" parent="VisualComponent"]
 z_index = 2
 offset_left = -48.0
 offset_top = -100.0
@@ -45,8 +48,8 @@ theme_override_font_sizes/font_size = 16
 text = "空屋"
 horizontal_alignment = 1
 
-[node name="StaticBody2D" type="StaticBody2D" parent="." unique_id=1465176465]
+[node name="StaticBody2D" type="StaticBody2D" parent="VisualComponent"]
 collision_layer = 2
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D" unique_id=864390165]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="VisualComponent/StaticBody2D"]
 shape = SubResource("RectangleShape2D_house")

@@ -15,7 +15,7 @@ var _left_button_down := false
 var _is_dragging := false
 var _drag_start := Vector2.ZERO
 var _drag_current := Vector2.ZERO
-var _hovered_interaction_host: InteractionSlotHost
+var _hovered_interaction_host: Node
 
 var _is_construction_planning := false
 var _construction_villagers: Array[Villager] = []
@@ -155,10 +155,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func begin_construction_planning() -> void:
-	_begin_construction_planning()
+	return
 
 
 func _begin_construction_planning() -> void:
+	return
 	if _is_building_placement_active():
 		return
 
@@ -386,6 +387,7 @@ func _try_begin_pending_right_action(
 	world_position: Vector2,
 	screen_position: Vector2
 ) -> bool:
+	return false
 	if _find_resource_at(world_position):
 		return false
 
@@ -798,46 +800,18 @@ func _command_selection_at(
 				)
 		return
 
-	var building := _find_building_at(world_position)
-	if building:
-		if building is Factory and (building as Factory).has_vacancy():
-			var nearest_villager := _find_nearest_selected_villager(
-				building.global_position,
-				building as Factory
-			)
-			var hired := (
-				is_instance_valid(nearest_villager)
-				and nearest_villager.work_at_factory(
-					building as Factory,
+	var component := _find_interactable_component_at(world_position)
+	if component:
+		for villager in _selected_villagers:
+			if (
+				is_instance_valid(villager)
+				and component.can_interact(villager)
+			):
+				villager.interact_with_component(
+					component,
 					should_queue,
 					repeat_queue
 				)
-			)
-			for villager in _selected_villagers:
-				if (
-					is_instance_valid(villager)
-					and (not hired or villager != nearest_villager)
-				):
-					villager.interact_with_building(
-						building,
-						should_queue,
-						repeat_queue
-					)
-			return
-		for villager in _selected_villagers:
-			if is_instance_valid(villager):
-				if building is ConstructionSite:
-					villager.interact_with_construction_site(
-						building as ConstructionSite,
-						should_queue,
-						repeat_queue
-					)
-				else:
-					villager.interact_with_building(
-						building,
-						should_queue,
-						repeat_queue
-					)
 		return
 
 	_move_selection_to(world_position, should_queue, repeat_queue)
@@ -894,15 +868,40 @@ func _find_building_at(world_position: Vector2) -> Building:
 	return closest_building
 
 
-func _find_demolishable_building_at(
-	world_position: Vector2
-) -> BuildableBuilding:
-	var closest_building: BuildableBuilding = null
+func _find_interactable_component_at(world_position: Vector2) -> Node:
+	var closest_component: Node = null
 	var closest_distance := INF
 
-	for node in get_tree().get_nodes_in_group(&"buildings"):
-		var building := node as BuildableBuilding
-		if building and building.contains_point(world_position):
+	for node in get_tree().get_nodes_in_group(&"interactable_components"):
+		var component := node as Node
+		if (
+			component
+			and component.has_method("contains_point")
+			and component.contains_point(world_position)
+		):
+			var distance: float = component.global_position.distance_squared_to(
+				world_position
+			)
+			if distance < closest_distance:
+				closest_component = component
+				closest_distance = distance
+
+	return closest_component
+
+
+func _find_demolishable_building_at(
+	world_position: Vector2
+) -> Node2D:
+	var closest_building: Node2D = null
+	var closest_distance := INF
+
+	for node in get_tree().get_nodes_in_group(&"building_roots"):
+		var building := node as Node2D
+		if (
+			building
+			and building.has_method("contains_point")
+			and building.contains_point(world_position)
+		):
 			var distance := building.global_position.distance_squared_to(
 				world_position
 			)
@@ -914,21 +913,25 @@ func _find_demolishable_building_at(
 
 
 func _update_hovered_interaction_host(world_position: Vector2) -> void:
-	var hovered_host: InteractionSlotHost = _find_resource_at(world_position)
+	var hovered_host: Node = _find_resource_at(world_position)
 	if not hovered_host:
-		hovered_host = _find_building_at(world_position)
+		hovered_host = _find_interactable_component_at(world_position)
 	_set_hovered_interaction_host(hovered_host)
 
 
-func _set_hovered_interaction_host(host: InteractionSlotHost) -> void:
+func _set_hovered_interaction_host(host: Node) -> void:
 	if (
 		is_instance_valid(_hovered_interaction_host)
 		and _hovered_interaction_host != host
+		and _hovered_interaction_host.has_method("set_hovered")
 	):
 		_hovered_interaction_host.set_hovered(false)
 
 	_hovered_interaction_host = host
-	if is_instance_valid(_hovered_interaction_host):
+	if (
+		is_instance_valid(_hovered_interaction_host)
+		and _hovered_interaction_host.has_method("set_hovered")
+	):
 		_hovered_interaction_host.set_hovered(true)
 
 

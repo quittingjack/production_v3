@@ -1,96 +1,198 @@
 [gd_scene format=3 uid="uid://b5hhy33p3wevv"]
 
-[ext_resource type="Script" uid="uid://bmr2ajvii77sw" path="res://scripts/factory.gd" id="1_factory"]
+[ext_resource type="Script" path="res://scripts/building_root.gd" id="1_root"]
+[ext_resource type="Script" path="res://scripts/visual_component.gd" id="2_visual"]
+[ext_resource type="Script" path="res://scripts/storage_component.gd" id="3_storage"]
+[ext_resource type="Script" path="res://scripts/work_component.gd" id="4_work"]
+[ext_resource type="Script" path="res://scripts/processor_component.gd" id="5_processor"]
+[ext_resource type="Script" path="res://scripts/interaction_slot.gd" id="6_slot"]
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_factory"]
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_visual"]
 size = Vector2(128, 96)
 
-[node name="Factory" type="Node2D" unique_id=1552686215 groups=["buildings"]]
-script = ExtResource("1_factory")
-construction_material_amount = 5
-obstacle_size = Vector2(64, 48)
-interaction_range_multiplier = 2.0
-interaction_slot_clearance = 4.0
-interaction_slot_spacing = 24.0
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_storage"]
+size = Vector2(42, 30)
 
-[node name="Body" type="Polygon2D" parent="." unique_id=399096600]
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_work"]
+size = Vector2(42, 36)
+
+[node name="FactoryBuilding" type="Node2D"]
+script = ExtResource("1_root")
+footprint_size = Vector2(160, 128)
+
+[node name="VisualComponent" type="Node2D" parent="."]
+script = ExtResource("2_visual")
+collision_size = Vector2(128, 96)
+interaction_size = Vector2(128, 96)
+
+[node name="Body" type="Polygon2D" parent="VisualComponent"]
 color = Color(0.32, 0.38, 0.42, 1)
 polygon = PackedVector2Array(-64, -48, 64, -48, 64, 48, -64, 48)
 
-[node name="Roof" type="Polygon2D" parent="." unique_id=1959159305]
+[node name="Roof" type="Polygon2D" parent="VisualComponent"]
 z_index = 1
 color = Color(0.5, 0.56, 0.6, 1)
 polygon = PackedVector2Array(-58, -42, 58, -42, 58, -18, -58, -18)
 
-[node name="Door" type="Polygon2D" parent="." unique_id=27732055]
+[node name="Door" type="Polygon2D" parent="VisualComponent"]
 z_index = 1
 color = Color(0.13, 0.16, 0.18, 1)
 polygon = PackedVector2Array(-14, 12, 14, 12, 14, 48, -14, 48)
 
-[node name="Chimney" type="Polygon2D" parent="." unique_id=1443927026]
+[node name="Chimney" type="Polygon2D" parent="VisualComponent"]
 z_index = 1
 color = Color(0.25, 0.2, 0.18, 1)
 polygon = PackedVector2Array(32, -72, 50, -72, 50, -30, 32, -30)
 
-[node name="StorageLabel" type="Label" parent="." unique_id=289223674]
-visible = false
+[node name="StaticBody2D" type="StaticBody2D" parent="VisualComponent"]
+collision_layer = 2
 
-[node name="InputLabel" type="Label" parent="." unique_id=1639349442]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="VisualComponent/StaticBody2D"]
+shape = SubResource("RectangleShape2D_visual")
+
+[node name="InputStorage" type="Node2D" parent="."]
+position = Vector2(-54, 62)
+script = ExtResource("3_storage")
+collision_size = Vector2(42, 30)
+interaction_size = Vector2(56, 44)
+resource_type = &"wood"
+capacity = 20
+allow_take = false
+
+[node name="Crate" type="Polygon2D" parent="InputStorage"]
 z_index = 2
-offset_left = -76.0
-offset_top = -106.0
-offset_right = 76.0
-offset_bottom = -82.0
+color = Color(0.44, 0.26, 0.12, 1)
+polygon = PackedVector2Array(-21, -15, 21, -15, 21, 15, -21, 15)
+
+[node name="AmountLabel" type="Label" parent="InputStorage"]
+z_index = 3
+offset_left = -68.0
+offset_top = 18.0
+offset_right = 68.0
+offset_bottom = 42.0
 theme_override_colors/font_color = Color(1, 0.9, 0.68, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
 theme_override_constants/shadow_offset_x = 1
 theme_override_constants/shadow_offset_y = 1
-theme_override_font_sizes/font_size = 16
-text = "木頭：0/20"
+theme_override_font_sizes/font_size = 15
+text = "wood：0/20"
 horizontal_alignment = 1
 
-[node name="OutputLabel" type="Label" parent="." unique_id=165407884]
+[node name="StaticBody2D" type="StaticBody2D" parent="InputStorage"]
+collision_layer = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InputStorage/StaticBody2D"]
+shape = SubResource("RectangleShape2D_storage")
+
+[node name="InteractionSlot" type="Node2D" parent="InputStorage"]
+position = Vector2(0, 72)
+script = ExtResource("6_slot")
+
+[node name="OutputStorage" type="Node2D" parent="."]
+position = Vector2(54, 62)
+script = ExtResource("3_storage")
+collision_size = Vector2(42, 30)
+interaction_size = Vector2(56, 44)
+resource_type = &"lumber"
+capacity = 10
+allow_deposit = false
+
+[node name="Crate" type="Polygon2D" parent="OutputStorage"]
 z_index = 2
-offset_left = -76.0
-offset_top = -84.0
-offset_right = 76.0
-offset_bottom = -60.0
+color = Color(0.66, 0.48, 0.24, 1)
+polygon = PackedVector2Array(-21, -15, 21, -15, 21, 15, -21, 15)
+
+[node name="AmountLabel" type="Label" parent="OutputStorage"]
+z_index = 3
+offset_left = -68.0
+offset_top = 18.0
+offset_right = 68.0
+offset_bottom = 42.0
 theme_override_colors/font_color = Color(0.76, 0.94, 1, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
 theme_override_constants/shadow_offset_x = 1
 theme_override_constants/shadow_offset_y = 1
-theme_override_font_sizes/font_size = 16
-text = "木材：0/10"
+theme_override_font_sizes/font_size = 15
+text = "lumber：0/10"
 horizontal_alignment = 1
 
-[node name="StatusLabel" type="Label" parent="." unique_id=324615007]
+[node name="StaticBody2D" type="StaticBody2D" parent="OutputStorage"]
+collision_layer = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="OutputStorage/StaticBody2D"]
+shape = SubResource("RectangleShape2D_storage")
+
+[node name="InteractionSlot" type="Node2D" parent="OutputStorage"]
+position = Vector2(0, 72)
+script = ExtResource("6_slot")
+
+[node name="WorkComponent" type="Node2D" parent="."]
+position = Vector2(0, 62)
+script = ExtResource("4_work")
+collision_size = Vector2(42, 36)
+interaction_size = Vector2(56, 48)
+
+[node name="Table" type="Polygon2D" parent="WorkComponent"]
 z_index = 2
-offset_left = -76.0
-offset_top = 58.0
-offset_right = 76.0
-offset_bottom = 82.0
+color = Color(0.18, 0.2, 0.22, 1)
+polygon = PackedVector2Array(-21, -18, 21, -18, 21, 18, -21, 18)
+
+[node name="StatusLabel" type="Label" parent="WorkComponent"]
+z_index = 3
+offset_left = -70.0
+offset_top = 20.0
+offset_right = 70.0
+offset_bottom = 44.0
 theme_override_colors/font_color = Color(0.88, 1, 0.76, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
 theme_override_constants/shadow_offset_x = 1
 theme_override_constants/shadow_offset_y = 1
 theme_override_font_sizes/font_size = 15
-text = "等待木頭"
+text = "工作中：0"
 horizontal_alignment = 1
 
-[node name="ProductionProgressBar" type="ProgressBar" parent="."]
-visible = false
-z_index = 2
+[node name="StaticBody2D" type="StaticBody2D" parent="WorkComponent"]
+collision_layer = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="WorkComponent/StaticBody2D"]
+shape = SubResource("RectangleShape2D_work")
+
+[node name="InteractionSlot" type="Node2D" parent="WorkComponent"]
+position = Vector2(0, 72)
+script = ExtResource("6_slot")
+
+[node name="ProcessorComponent" type="Node2D" parent="."]
+script = ExtResource("5_processor")
+collision_size = Vector2(1, 1)
+interaction_size = Vector2(1, 1)
+input_storage_paths = [NodePath("../InputStorage")]
+input_amounts = [5]
+output_storage_paths = [NodePath("../OutputStorage")]
+output_amounts = [1]
+required_work_component_paths = [NodePath("../WorkComponent")]
+production_duration = 10.0
+
+[node name="StatusLabel" type="Label" parent="ProcessorComponent"]
+z_index = 4
 offset_left = -76.0
-offset_top = 58.0
+offset_top = -104.0
 offset_right = 76.0
-offset_bottom = 82.0
+offset_bottom = -80.0
 theme_override_colors/font_color = Color(0.88, 1, 0.76, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 15
+text = "等待工人"
+horizontal_alignment = 1
+
+[node name="ProductionProgressBar" type="ProgressBar" parent="ProcessorComponent"]
+visible = false
+z_index = 4
+offset_left = -76.0
+offset_top = -104.0
+offset_right = 76.0
+offset_bottom = -80.0
 theme_override_font_sizes/font_size = 15
 value = 0.0
 show_percentage = true
-
-[node name="StaticBody2D" type="StaticBody2D" parent="." unique_id=482056805]
-collision_layer = 2
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D" unique_id=43174186]
-shape = SubResource("RectangleShape2D_factory")

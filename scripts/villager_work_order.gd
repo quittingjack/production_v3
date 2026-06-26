@@ -10,6 +10,7 @@ enum Type {
 	FACTORY_WORK,
 	INTERACT_BUILDING,
 	INTERACT_CONSTRUCTION_SITE,
+	INTERACT_COMPONENT,
 }
 
 var type := Type.MOVE
@@ -25,6 +26,8 @@ var construction_job: ConstructionJob
 var haul_material := false
 var factory: Factory
 var building: Building
+var component: Node
+var interaction_slot: Node
 
 
 static func create_move(target_position: Vector2) -> VillagerWorkOrder:
@@ -101,6 +104,17 @@ static func create_interact_construction_site(
 	order.type = Type.INTERACT_CONSTRUCTION_SITE
 	order.construction_site = site
 	order.building = site
+	return order
+
+
+static func create_interact_component(
+	target_component: Node,
+	target_slot: Node
+) -> VillagerWorkOrder:
+	var order := VillagerWorkOrder.new()
+	order.type = Type.INTERACT_COMPONENT
+	order.component = target_component
+	order.interaction_slot = target_slot
 	return order
 
 

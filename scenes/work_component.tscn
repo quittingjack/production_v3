@@ -1,0 +1,31 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/work_component.gd" id="1_work"]
+[ext_resource type="Script" path="res://scripts/interaction_slot.gd" id="2_slot"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_work"]
+size = Vector2(48, 36)
+
+[node name="WorkComponent" type="Node2D"]
+script = ExtResource("1_work")
+collision_size = Vector2(48, 36)
+interaction_size = Vector2(64, 48)
+
+[node name="StatusLabel" type="Label" parent="."]
+offset_left = -70.0
+offset_top = 20.0
+offset_right = 70.0
+offset_bottom = 44.0
+theme_override_font_sizes/font_size = 16
+text = "工作中：0"
+horizontal_alignment = 1
+
+[node name="StaticBody2D" type="StaticBody2D" parent="."]
+collision_layer = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="StaticBody2D"]
+shape = SubResource("RectangleShape2D_work")
+
+[node name="InteractionSlot" type="Node2D" parent="."]
+position = Vector2(0, 64)
+script = ExtResource("2_slot")

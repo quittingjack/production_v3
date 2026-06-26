@@ -45,6 +45,8 @@ enum WorkState {
 	INTERACTION_MOVING_TO_APPROACH,
 	INTERACTION_WAITING_FOR_SLOT,
 	INTERACTION_MOVING_TO_SLOT,
+	COMPONENT_MOVING_TO_SLOT,
+	COMPONENT_WORKING,
 }
 
 enum BuildingInteractionAction {
@@ -105,6 +107,8 @@ var _factory_slot := -1
 var _interaction_target: Building
 var _interaction_slot := -1
 var _interaction_action := BuildingInteractionAction.NONE
+var _component_target: Node
+var _component_slot: Node
 var _selection_radius := BASE_SELECTION_RADIUS
 var _is_navigation_stationary := true
 var _work_queue: Array[VillagerWorkOrder] = []
@@ -321,6 +325,32 @@ func interact_with_construction_site(
 	)
 
 
+func interact_with_component(
+	component: Node,
+	queue_work := false,
+	repeat_queue := false
+) -> bool:
+	if not _is_component_interaction_valid(component):
+		return false
+	if component.has_method("can_interact") and not component.can_interact(self):
+		return false
+
+	if not queue_work:
+		_clear_work_queue_and_current()
+		_repeat_work_queue = false
+
+	var slot = component.reserve_interaction_slot(self, global_position)
+	if not slot:
+		return false
+
+	_schedule_work(
+		VillagerWorkOrder.create_interact_component(component, slot),
+		true,
+		repeat_queue
+	)
+	return true
+
+
 func stop_all_work() -> void:
 	_repeat_work_queue = false
 	_clear_work_queue_and_current()
@@ -348,6 +378,47 @@ func has_work_queued_after_current() -> bool:
 	return _current_work_index >= 0 and _work_queue.size() > 1
 
 
+func get_backpack_amount() -> int:
+	return _backpack_amount
+
+
+func get_backpack_resource_type() -> StringName:
+	return _backpack_resource_type
+
+
+func deposit_backpack_to_storage(storage: Node) -> int:
+	if not is_instance_valid(storage) or _backpack_amount <= 0:
+		return 0
+	var stored: int = storage.store_resource(
+		_backpack_resource_type,
+		_backpack_amount
+	)
+	_backpack_amount -= stored
+	if _backpack_amount <= 0:
+		_clear_backpack()
+	else:
+		_update_backpack_label()
+	return stored
+
+
+func take_from_storage(storage: Node) -> int:
+	if not is_instance_valid(storage) or _backpack_amount >= backpack_capacity:
+		return 0
+	var output_type: StringName = storage.get_output_resource_type()
+	if output_type == &"":
+		return 0
+	if _backpack_amount > 0 and _backpack_resource_type != output_type:
+		return 0
+	var free_space := maxi(backpack_capacity - _backpack_amount, 0)
+	var taken: int = storage.take_output(output_type, free_space)
+	if taken <= 0:
+		return 0
+	_backpack_resource_type = output_type
+	_backpack_amount += taken
+	_update_backpack_label()
+	return taken
+
+
 func _schedule_work(
 	order: VillagerWorkOrder,
 	queue_work: bool,
@@ -368,6 +439,7 @@ func _schedule_work(
 func _clear_work_queue_and_current() -> void:
 	_repeat_work_queue = false
 	_release_queued_factory_reservations()
+	_release_queued_component_reservations()
 	_work_queue.clear()
 	_current_work_index = -1
 	_cancel_active_work()
@@ -383,6 +455,14 @@ func _release_queued_factory_reservations() -> void:
 			order.factory.release_worker(self)
 
 
+func _release_queued_component_reservations() -> void:
+	for order in _work_queue:
+		if order.type != VillagerWorkOrder.Type.INTERACT_COMPONENT:
+			continue
+		if is_instance_valid(order.component):
+			order.component.release_interaction_slot(self)
+
+
 func _cancel_active_work() -> void:
 	_cancel_construction_job()
 	_cancel_haul_job()
@@ -392,6 +472,8 @@ func _cancel_active_work() -> void:
 	_building_target = null
 	_interaction_target = null
 	_interaction_action = BuildingInteractionAction.NONE
+	_component_target = null
+	_component_slot = null
 	_work_resource_type = &""
 	_state = WorkState.IDLE
 	_action_timer = 0.0
@@ -608,6 +690,29 @@ func _start_building_interaction(
 	_begin_building_interaction_approach()
 
 
+func _start_component_interaction_order(order: VillagerWorkOrder) -> void:
+	_cancel_construction_job()
+	_cancel_haul_job()
+	_cancel_factory_work()
+	_release_all_slots()
+	_resource_target = null
+	_building_target = null
+	_interaction_target = null
+	_interaction_action = BuildingInteractionAction.NONE
+	_work_resource_type = &""
+	_component_target = order.component
+	_component_slot = order.interaction_slot
+	_action_timer = 0.0
+
+	if not _is_current_component_interaction_valid():
+		_discard_invalid_current_work_order()
+		return
+
+	_state = WorkState.COMPONENT_MOVING_TO_SLOT
+	_slot_move_timer = slot_move_timeout
+	_set_movement_target(_component_slot.get_interaction_position())
+
+
 func _start_current_work_order() -> void:
 	if _is_starting_work_order:
 		return
@@ -647,6 +752,8 @@ func _start_current_work_order() -> void:
 				_start_construction_site_interaction_order(
 					order.construction_site
 				)
+			VillagerWorkOrder.Type.INTERACT_COMPONENT:
+				_start_component_interaction_order(order)
 		if _get_current_work_order() != order:
 			continue
 		_is_starting_work_order = false
@@ -688,6 +795,13 @@ func _is_work_order_valid(order: VillagerWorkOrder) -> bool:
 			return _is_interaction_building_valid(order.building)
 		VillagerWorkOrder.Type.INTERACT_CONSTRUCTION_SITE:
 			return _is_construction_site_valid(order.construction_site)
+		VillagerWorkOrder.Type.INTERACT_COMPONENT:
+			return (
+				is_instance_valid(order.component)
+				and not order.component.is_queued_for_deletion()
+				and is_instance_valid(order.interaction_slot)
+				and order.interaction_slot.occupant == self
+			)
 	return false
 
 
@@ -707,12 +821,21 @@ func _remove_current_work_order() -> void:
 	):
 		_current_work_index = -1
 		return
+	_release_work_order_reservations(_work_queue[_current_work_index])
 	_work_queue.remove_at(_current_work_index)
 	if _work_queue.is_empty():
 		_current_work_index = -1
 		_repeat_work_queue = false
 	elif _current_work_index >= _work_queue.size():
 		_current_work_index = 0
+
+
+func _release_work_order_reservations(order: VillagerWorkOrder) -> void:
+	if (
+		order.type == VillagerWorkOrder.Type.INTERACT_COMPONENT
+		and is_instance_valid(order.component)
+	):
+		order.component.release_interaction_slot(self)
 
 
 func _complete_current_work_order() -> void:
@@ -1076,6 +1199,16 @@ func _update_work(delta: float) -> void:
 			if _slot_move_timer <= 0.0:
 				_release_interaction_slot()
 				_begin_building_interaction_approach()
+		WorkState.COMPONENT_MOVING_TO_SLOT:
+			if not _is_current_component_interaction_valid():
+				_complete_current_work_order()
+				return
+			_slot_move_timer -= delta
+			if _slot_move_timer <= 0.0:
+				_complete_current_work_order()
+		WorkState.COMPONENT_WORKING:
+			if not _is_current_component_interaction_valid():
+				_complete_current_work_order()
 
 
 func _arrive_at_target() -> void:
@@ -1158,6 +1291,11 @@ func _arrive_at_target() -> void:
 				and _interaction_slot >= 0
 			):
 				_perform_building_interaction()
+			else:
+				_complete_current_work_order()
+		WorkState.COMPONENT_MOVING_TO_SLOT:
+			if _is_current_component_interaction_valid():
+				_arrive_at_component_slot()
 			else:
 				_complete_current_work_order()
 
@@ -1637,6 +1775,37 @@ func _is_interaction_building_valid(building) -> bool:
 	)
 
 
+func _is_component_interaction_valid(component) -> bool:
+	return (
+		is_instance_valid(component)
+		and not component.is_queued_for_deletion()
+		and component.has_method("is_interactable")
+		and component.is_interactable()
+	)
+
+
+func _is_current_component_interaction_valid() -> bool:
+	return (
+		_is_component_interaction_valid(_component_target)
+		and is_instance_valid(_component_slot)
+		and _component_slot.occupant == self
+	)
+
+
+func _arrive_at_component_slot() -> void:
+	if not _is_current_component_interaction_valid():
+		_complete_current_work_order()
+		return
+
+	if _component_target.has_method("activate_worker"):
+		_component_target.activate_worker(self)
+		_state = WorkState.COMPONENT_WORKING
+		return
+
+	_component_target.perform_interaction(self)
+	_complete_current_work_order()
+
+
 func _is_resource_available(resource_node) -> bool:
 	return (
 		is_instance_valid(resource_node)
@@ -2056,6 +2225,7 @@ func _release_all_slots() -> void:
 	_release_construction_slot()
 	_release_factory_slot()
 	_release_interaction_slot()
+	_release_component_slot()
 
 
 func _release_resource_slot() -> void:
@@ -2097,6 +2267,15 @@ func _release_interaction_slot() -> void:
 	if is_instance_valid(_interaction_target) and _interaction_slot >= 0:
 		_interaction_target.release_interaction_slot(self)
 	_interaction_slot = -1
+
+
+func _release_component_slot() -> void:
+	if is_instance_valid(_component_target):
+		if _component_target.has_method("deactivate_worker"):
+			_component_target.deactivate_worker(self)
+		_component_target.release_interaction_slot(self)
+	_component_target = null
+	_component_slot = null
 
 
 func _stop_at_current_position() -> void:

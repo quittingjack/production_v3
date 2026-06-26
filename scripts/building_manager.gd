@@ -130,7 +130,7 @@ func cancel_demolition() -> void:
 		_demolition_cursor.visible = false
 
 
-func demolish_building(target: BuildableBuilding) -> bool:
+func demolish_building(target: Node2D) -> bool:
 	if (
 		not _is_demolishing
 		or not is_instance_valid(target)
@@ -138,12 +138,6 @@ func demolish_building(target: BuildableBuilding) -> bool:
 		or target.get_parent() != buildings
 	):
 		return false
-
-	if target is ConstructionSite:
-		var site := target as ConstructionSite
-		var completion_callback := Callable(self, "_on_construction_completed")
-		if site.construction_completed.is_connected(completion_callback):
-			site.construction_completed.disconnect(completion_callback)
 
 	buildings.remove_child(target)
 	target.queue_free()
@@ -198,7 +192,7 @@ func _start_placement(scene: PackedScene, building_size: Vector2) -> void:
 	if _is_demolishing:
 		cancel_demolition()
 	_selected_scene = scene
-	_selected_size = building_size
+	_selected_size = _get_scene_footprint(scene, building_size)
 	building_menu.hide()
 	_is_placing = true
 	_preview.polygon = _rectangle_polygon(_selected_size * 0.5)
@@ -218,30 +212,20 @@ func _cancel_placement() -> void:
 func _place_building(continue_placement := false) -> void:
 	if not _selected_scene:
 		return
-	var site := CONSTRUCTION_SITE_SCENE.instantiate() as ConstructionSite
-	var target_building := _selected_scene.instantiate() as BuildableBuilding
-	if not site or not target_building:
-		push_error("Building placement requires a BuildableBuilding scene.")
+	var building := _selected_scene.instantiate() as Node2D
+	if not building or not building.has_method("contains_point"):
+		push_error("Building placement requires a BuildingRoot scene.")
 		return
 
-	site.position = _preview_position
-	site.initialize(
-		_selected_scene,
-		_selected_size,
-		target_building.construction_resource_type,
-		target_building.construction_material_amount,
-		target_building.construction_duration
-	)
-	target_building.free()
-	site.construction_completed.connect(_on_construction_completed)
-	buildings.add_child(site)
+	building.position = _preview_position
+	buildings.add_child(building)
 	if continue_placement:
 		_placement_is_valid = false
 		_preview.color = INVALID_COLOR
 	else:
 		_cancel_placement()
 	_rebuild_navigation()
-	construction_started.emit(site)
+	building_completed.emit(building)
 
 
 func _on_construction_completed(
@@ -271,6 +255,21 @@ func _on_construction_completed(
 
 func request_navigation_rebuild() -> void:
 	_rebuild_navigation()
+
+
+func _get_scene_footprint(scene: PackedScene, fallback_size: Vector2) -> Vector2:
+	if not scene:
+		return fallback_size
+	var root := scene.instantiate() as Node
+	if not root:
+		return fallback_size
+	var footprint_value = root.get("footprint_size")
+	if typeof(footprint_value) != TYPE_VECTOR2:
+		root.free()
+		return fallback_size
+	var footprint: Vector2 = footprint_value
+	root.free()
+	return footprint
 
 
 func _can_place_at(world_position: Vector2) -> bool:
@@ -311,8 +310,9 @@ func _rebuild_navigation() -> void:
 	source_geometry.add_traversable_outline(_rect_outline(navigation_bounds))
 
 	var obstacle_nodes: Array[Node] = []
-	obstacle_nodes.append_array(get_tree().get_nodes_in_group(&"buildings"))
+	obstacle_nodes.append_array(get_tree().get_nodes_in_group(&"navigation_obstacles"))
 	obstacle_nodes.append_array(get_tree().get_nodes_in_group(&"resources"))
+	obstacle_nodes.append_array(get_tree().get_nodes_in_group(&"town_centers"))
 
 	for node in obstacle_nodes:
 		var obstacle := node as Node2D
