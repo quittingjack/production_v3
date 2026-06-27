@@ -1,3 +1,4 @@
+## Legacy compatibility for pre-component buildings. Do not extend for new component buildings.
 class_name ConstructionJob
 extends RefCounted
 

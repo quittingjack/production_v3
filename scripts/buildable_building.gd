@@ -1,3 +1,4 @@
+## Legacy compatibility for pre-component buildings. Do not extend for new component buildings.
 class_name BuildableBuilding
 extends InteractionSlotHost
 
@@ -5,4 +6,3 @@ extends InteractionSlotHost
 @export var construction_resource_type: StringName = &"wood"
 @export var construction_material_amount := 10
 @export var construction_duration := 10.0
-
