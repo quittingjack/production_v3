@@ -1,11 +1,11 @@
 [gd_scene format=3 uid="uid://b5hhy33p3wevv"]
 
-[ext_resource type="Script" path="res://scripts/building_root.gd" id="1_root"]
-[ext_resource type="Script" path="res://scripts/visual_component.gd" id="2_visual"]
-[ext_resource type="Script" path="res://scripts/storage_component.gd" id="3_storage"]
-[ext_resource type="Script" path="res://scripts/work_component.gd" id="4_work"]
-[ext_resource type="Script" path="res://scripts/processor_component.gd" id="5_processor"]
-[ext_resource type="Script" path="res://scripts/interaction_slot.gd" id="6_slot"]
+[ext_resource type="Script" uid="uid://cm6cii02ta27d" path="res://scripts/building_root.gd" id="1_root"]
+[ext_resource type="Script" uid="uid://bqx2cb3snuem1" path="res://scripts/visual_component.gd" id="2_visual"]
+[ext_resource type="Script" uid="uid://cc8bqhsjx5x2p" path="res://scripts/storage_component.gd" id="3_storage"]
+[ext_resource type="Script" uid="uid://dp5qvgyubuaem" path="res://scripts/work_component.gd" id="4_work"]
+[ext_resource type="Script" uid="uid://cyexuv7lnwj8h" path="res://scripts/processor_component.gd" id="5_processor"]
+[ext_resource type="Script" uid="uid://0cqrjpbhbp0i" path="res://scripts/interaction_slot.gd" id="6_slot"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_visual"]
 size = Vector2(128, 96)
@@ -16,55 +16,53 @@ size = Vector2(42, 30)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_work"]
 size = Vector2(42, 36)
 
-[node name="FactoryBuilding" type="Node2D"]
+[node name="FactoryBuilding" type="Node2D" unique_id=1344721029]
 script = ExtResource("1_root")
 footprint_size = Vector2(160, 128)
 
-[node name="VisualComponent" type="Node2D" parent="."]
+[node name="VisualComponent" type="Node2D" parent="." unique_id=323773591]
 script = ExtResource("2_visual")
 collision_size = Vector2(128, 96)
 interaction_size = Vector2(128, 96)
 
-[node name="Body" type="Polygon2D" parent="VisualComponent"]
+[node name="Body" type="Polygon2D" parent="VisualComponent" unique_id=1241909119]
 color = Color(0.32, 0.38, 0.42, 1)
 polygon = PackedVector2Array(-64, -48, 64, -48, 64, 48, -64, 48)
 
-[node name="Roof" type="Polygon2D" parent="VisualComponent"]
+[node name="Roof" type="Polygon2D" parent="VisualComponent" unique_id=1303046450]
 z_index = 1
 color = Color(0.5, 0.56, 0.6, 1)
 polygon = PackedVector2Array(-58, -42, 58, -42, 58, -18, -58, -18)
 
-[node name="Door" type="Polygon2D" parent="VisualComponent"]
+[node name="Door" type="Polygon2D" parent="VisualComponent" unique_id=2065232361]
 z_index = 1
 color = Color(0.13, 0.16, 0.18, 1)
 polygon = PackedVector2Array(-14, 12, 14, 12, 14, 48, -14, 48)
 
-[node name="Chimney" type="Polygon2D" parent="VisualComponent"]
+[node name="Chimney" type="Polygon2D" parent="VisualComponent" unique_id=1765125452]
 z_index = 1
 color = Color(0.25, 0.2, 0.18, 1)
 polygon = PackedVector2Array(32, -72, 50, -72, 50, -30, 32, -30)
 
-[node name="StaticBody2D" type="StaticBody2D" parent="VisualComponent"]
+[node name="StaticBody2D" type="StaticBody2D" parent="VisualComponent" unique_id=1827186564]
 collision_layer = 2
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="VisualComponent/StaticBody2D"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="VisualComponent/StaticBody2D" unique_id=55174291]
 shape = SubResource("RectangleShape2D_visual")
 
-[node name="InputStorage" type="Node2D" parent="."]
+[node name="InputStorage" type="Node2D" parent="." unique_id=717573201]
 position = Vector2(-54, 62)
 script = ExtResource("3_storage")
+allow_take = false
 collision_size = Vector2(42, 30)
 interaction_size = Vector2(56, 44)
-resource_type = &"wood"
-capacity = 20
-allow_take = false
 
-[node name="Crate" type="Polygon2D" parent="InputStorage"]
+[node name="Crate" type="Polygon2D" parent="InputStorage" unique_id=109182047]
 z_index = 2
 color = Color(0.44, 0.26, 0.12, 1)
 polygon = PackedVector2Array(-21, -15, 21, -15, 21, 15, -21, 15)
 
-[node name="AmountLabel" type="Label" parent="InputStorage"]
+[node name="AmountLabel" type="Label" parent="InputStorage" unique_id=849522240]
 z_index = 3
 offset_left = -68.0
 offset_top = 18.0
@@ -78,31 +76,31 @@ theme_override_font_sizes/font_size = 15
 text = "wood：0/20"
 horizontal_alignment = 1
 
-[node name="StaticBody2D" type="StaticBody2D" parent="InputStorage"]
+[node name="StaticBody2D" type="StaticBody2D" parent="InputStorage" unique_id=1882151880]
 collision_layer = 2
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="InputStorage/StaticBody2D"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InputStorage/StaticBody2D" unique_id=541767116]
 shape = SubResource("RectangleShape2D_storage")
 
-[node name="InteractionSlot" type="Node2D" parent="InputStorage"]
+[node name="InteractionSlot" type="Node2D" parent="InputStorage" unique_id=2018234620]
 position = Vector2(0, 72)
 script = ExtResource("6_slot")
 
-[node name="OutputStorage" type="Node2D" parent="."]
+[node name="OutputStorage" type="Node2D" parent="." unique_id=568935573]
 position = Vector2(54, 62)
 script = ExtResource("3_storage")
-collision_size = Vector2(42, 30)
-interaction_size = Vector2(56, 44)
 resource_type = &"lumber"
 capacity = 10
 allow_deposit = false
+collision_size = Vector2(42, 30)
+interaction_size = Vector2(56, 44)
 
-[node name="Crate" type="Polygon2D" parent="OutputStorage"]
+[node name="Crate" type="Polygon2D" parent="OutputStorage" unique_id=630783537]
 z_index = 2
 color = Color(0.66, 0.48, 0.24, 1)
 polygon = PackedVector2Array(-21, -15, 21, -15, 21, 15, -21, 15)
 
-[node name="AmountLabel" type="Label" parent="OutputStorage"]
+[node name="AmountLabel" type="Label" parent="OutputStorage" unique_id=831909490]
 z_index = 3
 offset_left = -68.0
 offset_top = 18.0
@@ -116,28 +114,28 @@ theme_override_font_sizes/font_size = 15
 text = "lumber：0/10"
 horizontal_alignment = 1
 
-[node name="StaticBody2D" type="StaticBody2D" parent="OutputStorage"]
+[node name="StaticBody2D" type="StaticBody2D" parent="OutputStorage" unique_id=476530586]
 collision_layer = 2
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="OutputStorage/StaticBody2D"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="OutputStorage/StaticBody2D" unique_id=1919312632]
 shape = SubResource("RectangleShape2D_storage")
 
-[node name="InteractionSlot" type="Node2D" parent="OutputStorage"]
+[node name="InteractionSlot" type="Node2D" parent="OutputStorage" unique_id=339332970]
 position = Vector2(0, 72)
 script = ExtResource("6_slot")
 
-[node name="WorkComponent" type="Node2D" parent="."]
+[node name="WorkComponent" type="Node2D" parent="." unique_id=2024441324]
 position = Vector2(0, 62)
 script = ExtResource("4_work")
 collision_size = Vector2(42, 36)
 interaction_size = Vector2(56, 48)
 
-[node name="Table" type="Polygon2D" parent="WorkComponent"]
+[node name="Table" type="Polygon2D" parent="WorkComponent" unique_id=761338946]
 z_index = 2
 color = Color(0.18, 0.2, 0.22, 1)
 polygon = PackedVector2Array(-21, -18, 21, -18, 21, 18, -21, 18)
 
-[node name="StatusLabel" type="Label" parent="WorkComponent"]
+[node name="StatusLabel" type="Label" parent="WorkComponent" unique_id=1515255179]
 z_index = 3
 offset_left = -70.0
 offset_top = 20.0
@@ -151,28 +149,27 @@ theme_override_font_sizes/font_size = 15
 text = "工作中：0"
 horizontal_alignment = 1
 
-[node name="StaticBody2D" type="StaticBody2D" parent="WorkComponent"]
+[node name="StaticBody2D" type="StaticBody2D" parent="WorkComponent" unique_id=649187893]
 collision_layer = 2
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="WorkComponent/StaticBody2D"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="WorkComponent/StaticBody2D" unique_id=176230430]
 shape = SubResource("RectangleShape2D_work")
 
-[node name="InteractionSlot" type="Node2D" parent="WorkComponent"]
+[node name="InteractionSlot" type="Node2D" parent="WorkComponent" unique_id=1097091809]
 position = Vector2(0, 72)
 script = ExtResource("6_slot")
 
-[node name="ProcessorComponent" type="Node2D" parent="."]
+[node name="ProcessorComponent" type="Node2D" parent="." unique_id=1899010616]
 script = ExtResource("5_processor")
+input_storage_paths = Array[NodePath]([NodePath("../InputStorage")])
+input_amounts = Array[int]([5])
+output_storage_paths = Array[NodePath]([NodePath("../OutputStorage")])
+output_amounts = Array[int]([1])
+required_work_component_paths = Array[NodePath]([NodePath("../WorkComponent")])
 collision_size = Vector2(1, 1)
 interaction_size = Vector2(1, 1)
-input_storage_paths = [NodePath("../InputStorage")]
-input_amounts = [5]
-output_storage_paths = [NodePath("../OutputStorage")]
-output_amounts = [1]
-required_work_component_paths = [NodePath("../WorkComponent")]
-production_duration = 10.0
 
-[node name="StatusLabel" type="Label" parent="ProcessorComponent"]
+[node name="StatusLabel" type="Label" parent="ProcessorComponent" unique_id=1370571628]
 z_index = 4
 offset_left = -76.0
 offset_top = -104.0
@@ -186,7 +183,7 @@ theme_override_font_sizes/font_size = 15
 text = "等待工人"
 horizontal_alignment = 1
 
-[node name="ProductionProgressBar" type="ProgressBar" parent="ProcessorComponent"]
+[node name="ProductionProgressBar" type="ProgressBar" parent="ProcessorComponent" unique_id=366596547]
 visible = false
 z_index = 4
 offset_left = -76.0
@@ -194,5 +191,3 @@ offset_top = -104.0
 offset_right = 76.0
 offset_bottom = -80.0
 theme_override_font_sizes/font_size = 15
-value = 0.0
-show_percentage = true
