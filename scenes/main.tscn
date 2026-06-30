@@ -8,6 +8,7 @@
 [ext_resource type="Script" uid="uid://he8omt5eoimf" path="res://scripts/selected_villager_ui.gd" id="6_villager_ui"]
 [ext_resource type="Script" path="res://scripts/immigration_manager.gd" id="7_immigration"]
 [ext_resource type="PackedScene" path="res://scenes/town_center.tscn" id="8_town_center"]
+[ext_resource type="Script" path="res://scripts/pause_manager.gd" id="9_pause"]
 
 [sub_resource type="PlaceholderTexture2D" id="PlaceholderTexture2D_sugp2"]
 
@@ -55,6 +56,11 @@ corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
 [node name="Main" type="Node2D" unique_id=867135662]
+
+[node name="PauseManager" type="Node" parent="."]
+process_mode = 3
+script = ExtResource("9_pause")
+pause_label_path = NodePath("../Interface/PauseLabel")
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=2056613019]
 position = Vector2(576, 324)
@@ -105,6 +111,7 @@ position = Vector2(940, 340)
 position = Vector2(790, 500)
 
 [node name="SelectionManager" type="Node2D" parent="." unique_id=898392853]
+process_mode = 3
 z_index = 10
 script = ExtResource("2_sugp2")
 
@@ -149,7 +156,7 @@ offset_bottom = 65.0
 theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
 theme_override_font_sizes/font_size = 18
 theme_override_styles/normal = SubResource("StyleBoxFlat_help")
-text = "左鍵：單選／拖曳框選    右鍵：智能指令    Shift：追加工作    Ctrl：循環排程    S：停止村民    B：建築選單    X：拆除模式    WASD：移動相機    滾輪：縮放"
+text = "左鍵：單選／拖曳框選    右鍵：智能指令    Shift：追加工作    Ctrl：循環排程    Space：暫停/繼續    S：停止村民    B：建築選單    X：拆除模式    WASD：移動相機    滾輪：縮放"
 
 [node name="HaulPlanningLabel" type="Label" parent="Interface"]
 visible = false
@@ -181,6 +188,23 @@ theme_override_colors/font_color = Color(1, 0.9, 0.58, 1)
 theme_override_font_sizes/font_size = 20
 theme_override_styles/normal = SubResource("StyleBoxFlat_help")
 text = "新移民"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PauseLabel" type="Label" parent="Interface"]
+visible = false
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 820.0
+offset_top = 84.0
+offset_right = -820.0
+offset_bottom = 128.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.9, 0.58, 1)
+theme_override_font_sizes/font_size = 24
+theme_override_styles/normal = SubResource("StyleBoxFlat_help")
+text = "已暫停"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -220,6 +244,7 @@ layout_mode = 2
 text = "取消"
 
 [node name="SelectedVillagerPanel" type="PanelContainer" parent="Interface" unique_id=144263876]
+process_mode = 3
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
