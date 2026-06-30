@@ -53,9 +53,16 @@ shape = SubResource("RectangleShape2D_visual")
 [node name="InputStorage" type="Node2D" parent="." unique_id=717573201]
 position = Vector2(-54, 62)
 script = ExtResource("3_storage")
+resource_type = null
+capacity = null
+allow_deposit = null
 allow_take = false
+label_path = null
 collision_size = Vector2(42, 30)
 interaction_size = Vector2(56, 44)
+debug_draw = null
+hover_color = null
+collision_color = null
 
 [node name="Crate" type="Polygon2D" parent="InputStorage" unique_id=109182047]
 z_index = 2
@@ -92,8 +99,13 @@ script = ExtResource("3_storage")
 resource_type = &"lumber"
 capacity = 10
 allow_deposit = false
+allow_take = null
+label_path = null
 collision_size = Vector2(42, 30)
 interaction_size = Vector2(56, 44)
+debug_draw = null
+hover_color = null
+collision_color = null
 
 [node name="Crate" type="Polygon2D" parent="OutputStorage" unique_id=630783537]
 z_index = 2

@@ -7,6 +7,8 @@ func _initialize() -> void:
 
 func _run_test() -> void:
 	await _test_manual_slot_reservation()
+	await _test_loop_command_sequence()
+	await _test_full_backpack_gather_completion()
 	await _test_storage_interaction()
 	await _test_work_component()
 	await _test_processor_without_worker()
@@ -37,6 +39,100 @@ func _test_manual_slot_reservation() -> void:
 	await process_frame
 
 
+func _test_loop_command_sequence() -> void:
+	var villager := _instantiate("res://scenes/villager.tscn")
+	root.add_child(villager)
+	await process_frame
+
+	var first := Vector2(10.0, 0.0)
+	var second := Vector2(20.0, 0.0)
+	var third := Vector2(30.0, 0.0)
+	var tail := Vector2(40.0, 0.0)
+	villager.move_to(first, false, true)
+	villager.move_to(second, true, true)
+	villager.move_to(third, true, true)
+	villager.move_to(tail, true, false)
+
+	if villager.get_work_queue_count() != 4:
+		_fail("Loop command sequence did not keep all displayed commands.")
+	if villager._target_position != first:
+		_fail("Loop command sequence did not start at the first loop command.")
+	villager._arrive_at_target()
+	if villager._target_position != second:
+		_fail("Loop command sequence did not advance to the second loop command.")
+	villager._arrive_at_target()
+	if villager._target_position != third:
+		_fail("Loop command sequence did not advance to the third loop command.")
+	villager._arrive_at_target()
+	if villager._target_position != first:
+		_fail("Loop command sequence did not wrap back to the first loop command.")
+
+	villager.queue_free()
+	await process_frame
+
+
+func _test_full_backpack_gather_completion() -> void:
+	var resource := _instantiate("res://scenes/wood_resource.tscn")
+	var villager := _instantiate("res://scenes/villager.tscn") as Villager
+	root.add_child(resource)
+	root.add_child(villager)
+	await process_frame
+
+	_set_backpack(villager, &"wood", villager.backpack_capacity)
+	villager.gather_from(resource)
+	if villager.get_work_queue_count() != 0:
+		_fail("Full backpack gather did not complete the one-shot gather order.")
+	if villager.get_state_name() != "IDLE":
+		_fail("Full backpack gather should not move or enter gather state.")
+	if villager._resource_slot >= 0:
+		_fail("Full backpack gather reserved a resource slot.")
+
+	resource.queue_free()
+	villager.queue_free()
+	await process_frame
+
+	resource = _instantiate("res://scenes/wood_resource.tscn")
+	villager = _instantiate("res://scenes/villager.tscn") as Villager
+	root.add_child(resource)
+	root.add_child(villager)
+	await process_frame
+
+	_set_backpack(villager, &"wood", villager.backpack_capacity)
+	villager.gather_from(resource, false, true)
+	if villager.get_work_queue_count() != 1:
+		_fail("Looping gather should remain displayed after full backpack completion.")
+	if villager.get_current_work_index() != -1:
+		_fail("Single looping full backpack gather should not restart itself immediately.")
+	if villager.get_state_name() != "IDLE":
+		_fail("Single looping full backpack gather should leave the villager idle.")
+
+	resource.queue_free()
+	villager.queue_free()
+	await process_frame
+
+	resource = _instantiate("res://scenes/wood_resource.tscn")
+	var storage := _instantiate("res://scenes/storage_component.tscn")
+	villager = _instantiate("res://scenes/villager.tscn") as Villager
+	root.add_child(resource)
+	root.add_child(storage)
+	root.add_child(villager)
+	await process_frame
+
+	_set_backpack(villager, &"wood", villager.backpack_capacity)
+	villager.gather_from(resource, false, true)
+	if not villager.interact_with_component(storage, true, true):
+		_fail("Could not queue storage after a looping gather.")
+	if villager.get_current_work_type_name() != "INTERACT_STORAGE":
+		_fail("Full backpack looping gather did not advance to the queued storage order.")
+	if villager.get_state_name() != "MOVING_TO_COMPONENT_SLOT":
+		_fail("Queued storage order did not start after full backpack looping gather.")
+
+	resource.queue_free()
+	storage.queue_free()
+	villager.queue_free()
+	await process_frame
+
+
 func _test_storage_interaction() -> void:
 	var storage := _instantiate("res://scenes/storage_component.tscn")
 	var villager := _instantiate("res://scenes/villager.tscn")
@@ -57,9 +153,15 @@ func _test_storage_interaction() -> void:
 	if storage.stored_amount != 0 or villager.get_backpack_amount() != 3:
 		_fail("Storage take did not move output resources.")
 
+	storage.store_resource(&"wood", 2)
 	_set_backpack(villager, &"stone", 1)
-	if villager.interact_with_component(storage):
-		_fail("Storage accepted a mismatched carried resource.")
+	if not villager.interact_with_component(storage):
+		_fail("Storage should discard mismatched carried resource and take output.")
+	_arrive_at_reserved_slot(villager)
+	if storage.stored_amount != 0:
+		_fail("Mismatched storage interaction did not take available output.")
+	if villager.get_backpack_resource_type() != &"wood" or villager.get_backpack_amount() != 2:
+		_fail("Mismatched storage interaction did not replace the backpack.")
 
 	storage.queue_free()
 	villager.queue_free()
@@ -81,6 +183,15 @@ func _test_work_component() -> void:
 	if not work.has_active_worker():
 		_fail("Work component was not activated by the worker.")
 
+	work.complete_active_workers()
+	if villager.get_state_name() == "COMPONENT_WORKING":
+		_fail("Completing work did not release the villager.")
+	if work.has_active_worker():
+		_fail("Completing work did not deactivate the work component.")
+
+	if not villager.interact_with_component(work):
+		_fail("Villager could not restart work after completion.")
+	_arrive_at_reserved_slot(villager)
 	villager.stop_all_work()
 	if work.has_active_worker():
 		_fail("Stopping work did not deactivate the work component.")
@@ -148,6 +259,10 @@ func _test_factory_scene_with_worker() -> void:
 	await create_timer(0.12).timeout
 	if input.stored_amount != 0 or output.stored_amount != 1:
 		_fail("Factory did not produce lumber with an active worker.")
+	if work.has_active_worker():
+		_fail("Factory work component did not release worker after one production.")
+	if villager.get_state_name() == "COMPONENT_WORKING":
+		_fail("Villager did not leave work state after one production.")
 
 	factory.queue_free()
 	villager.queue_free()
@@ -178,7 +293,7 @@ func _test_building_manager_places_and_demolishes_roots() -> void:
 	selection_manager._select_only(villager)
 	_set_backpack(villager, &"wood", 1)
 	selection_manager._command_selection_at(storage.global_position)
-	if villager.get_current_work_type_name() != "INTERACT_COMPONENT":
+	if villager.get_current_work_type_name() != "INTERACT_STORAGE":
 		_fail("Right-clicking a storage component did not issue component work.")
 
 	villager.stop_all_work()

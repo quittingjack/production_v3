@@ -2,6 +2,7 @@ extends "res://scripts/building_component.gd"
 class_name WorkComponent
 
 signal workers_changed(work_component)
+signal work_completed(work_component)
 
 @export var label_path: NodePath = ^"StatusLabel"
 
@@ -32,6 +33,18 @@ func deactivate_worker(worker: Node) -> void:
 	_active_workers.erase(worker)
 	_update_label()
 	workers_changed.emit(self)
+
+
+func complete_active_workers() -> void:
+	var workers := _active_workers.duplicate()
+	for worker in workers:
+		if not is_instance_valid(worker):
+			continue
+		if worker.has_method("finish_component_work"):
+			worker.finish_component_work(self)
+		else:
+			deactivate_worker(worker)
+	work_completed.emit(self)
 
 
 func has_active_worker() -> bool:

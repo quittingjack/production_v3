@@ -69,7 +69,15 @@ func _finish_production() -> void:
 	_production_time_left = 0.0
 	_store_outputs()
 	production_changed.emit(self)
+	_complete_required_workers()
 	_try_start_production()
+
+
+func _complete_required_workers() -> void:
+	for path in required_work_component_paths:
+		var work_component := get_node_or_null(path)
+		if work_component and work_component.has_method("complete_active_workers"):
+			work_component.complete_active_workers()
 
 
 func _has_required_workers() -> bool:
