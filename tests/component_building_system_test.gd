@@ -10,6 +10,7 @@ func _run_test() -> void:
 	await _test_loop_command_sequence()
 	await _test_full_backpack_gather_completion()
 	await _test_storage_interaction()
+	await _test_empty_backpack_can_queue_input_storage()
 	await _test_work_component()
 	await _test_processor_without_worker()
 	await _test_factory_scene_with_worker()
@@ -162,6 +163,27 @@ func _test_storage_interaction() -> void:
 		_fail("Mismatched storage interaction did not take available output.")
 	if villager.get_backpack_resource_type() != &"wood" or villager.get_backpack_amount() != 2:
 		_fail("Mismatched storage interaction did not replace the backpack.")
+
+	storage.queue_free()
+	villager.queue_free()
+	await process_frame
+
+
+func _test_empty_backpack_can_queue_input_storage() -> void:
+	var storage := _instantiate("res://scenes/storage_component.tscn")
+	var villager := _instantiate("res://scenes/villager.tscn")
+	storage.allow_deposit = true
+	storage.allow_take = false
+	root.add_child(storage)
+	root.add_child(villager)
+	await process_frame
+
+	if not villager.interact_with_component(storage, true, true):
+		_fail("Empty backpack villager could not queue an input storage interaction.")
+	if villager.get_current_work_type_name() != "INTERACT_STORAGE":
+		_fail("Empty backpack input storage interaction did not create storage work.")
+	if villager.get_state_name() != "MOVING_TO_COMPONENT_SLOT":
+		_fail("Empty backpack input storage interaction did not start moving to storage.")
 
 	storage.queue_free()
 	villager.queue_free()

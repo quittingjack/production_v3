@@ -86,23 +86,39 @@ func can_interact(villager: Node) -> bool:
 		return true
 
 	var can_take := allow_take and get_output_amount(resource_type) > 0
-	if not can_take:
+	if can_take:
 		_log(
 			"can_interact",
-			"interaction rejected for take branch",
+			"interaction accepted for take branch",
+			{"villager": villager.name, "available_output": get_output_amount(resource_type)}
+		)
+		return true
+
+	var can_deposit_later := allow_deposit and has_storage_space()
+	if can_deposit_later:
+		_log(
+			"can_interact",
+			"interaction accepted for empty-backpack deposit branch",
 			{
 				"villager": villager.name,
-				"allow_take": allow_take,
-				"available_output": get_output_amount(resource_type),
+				"stored_amount": stored_amount,
+				"capacity": capacity,
 			}
 		)
-		return false
+		return true
+
 	_log(
 		"can_interact",
-		"interaction accepted for take branch",
-		{"villager": villager.name, "available_output": get_output_amount(resource_type)}
+		"interaction rejected for empty-backpack branch",
+		{
+			"villager": villager.name,
+			"allow_deposit": allow_deposit,
+			"allow_take": allow_take,
+			"has_storage_space": has_storage_space(),
+			"available_output": get_output_amount(resource_type),
+		}
 	)
-	return true
+	return false
 
 
 func perform_interaction(villager: Node) -> void:
