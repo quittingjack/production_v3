@@ -23,6 +23,7 @@ enum WorkState {
 	MOVING_TO_RESOURCE_SLOT,
 	GATHERING,
 	MOVING_TO_COMPONENT_SLOT,
+	WAITING_FOR_COMPONENT_INTERACTION,
 	COMPONENT_WORKING,
 }
 
@@ -900,6 +901,21 @@ func _update_work(delta: float) -> void:
 					}
 				)
 				_complete_current_work_order()
+		WorkState.WAITING_FOR_COMPONENT_INTERACTION:
+			if not _is_current_component_interaction_valid():
+				_warn(
+					"_update_work",
+					"component interaction became invalid while waiting; completing work order",
+					{
+						"component": _node_name(_component_target),
+						"slot": _slot_name(_component_slot),
+					}
+				)
+				_complete_current_work_order()
+				return
+			_action_timer -= delta
+			if _action_timer <= 0.0:
+				_try_complete_component_interaction()
 		WorkState.COMPONENT_WORKING:
 			if not _is_current_component_interaction_valid():
 				_warn(
@@ -1095,8 +1111,39 @@ func _arrive_at_component_slot() -> void:
 		"performing immediate component interaction",
 		{"component": _component_target.name}
 	)
-	_component_target.perform_interaction(self)
-	_complete_current_work_order()
+	_try_complete_component_interaction()
+
+
+func _try_complete_component_interaction() -> void:
+	if not _is_current_component_interaction_valid():
+		_warn(
+			"_try_complete_component_interaction",
+			"component slot is invalid during interaction retry",
+			{"component": _node_name(_component_target), "slot": _slot_name(_component_slot)}
+		)
+		_complete_current_work_order()
+		return
+
+	var is_complete := true
+	if _component_target.has_method("try_perform_interaction"):
+		is_complete = _component_target.try_perform_interaction(self)
+	elif _component_target.has_method("perform_interaction"):
+		_component_target.perform_interaction(self)
+	if is_complete:
+		_complete_current_work_order()
+		return
+
+	_log(
+		"_try_complete_component_interaction",
+		"component interaction is waiting for retry",
+		{
+			"component": _component_target.name,
+			"retry_interval": retry_interval,
+		}
+	)
+	_state = WorkState.WAITING_FOR_COMPONENT_INTERACTION
+	_action_timer = retry_interval
+	_stop_at_current_position()
 
 
 func _is_resource_available(resource_node) -> bool:

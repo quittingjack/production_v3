@@ -10,6 +10,8 @@ func _run_test() -> void:
 	await _test_loop_command_sequence()
 	await _test_full_backpack_gather_completion()
 	await _test_storage_interaction()
+	await _test_storage_deposit_waits_when_full()
+	await _test_storage_partial_deposit_waits()
 	await _test_empty_backpack_can_queue_input_storage()
 	await _test_work_component()
 	await _test_processor_without_worker()
@@ -163,6 +165,68 @@ func _test_storage_interaction() -> void:
 		_fail("Mismatched storage interaction did not take available output.")
 	if villager.get_backpack_resource_type() != &"wood" or villager.get_backpack_amount() != 2:
 		_fail("Mismatched storage interaction did not replace the backpack.")
+
+	storage.queue_free()
+	villager.queue_free()
+	await process_frame
+
+
+func _test_storage_deposit_waits_when_full() -> void:
+	var storage := _instantiate("res://scenes/storage_component.tscn")
+	var villager := _instantiate("res://scenes/villager.tscn")
+	storage.capacity = 3
+	storage.stored_amount = 3
+	root.add_child(storage)
+	root.add_child(villager)
+	await process_frame
+
+	_set_backpack(villager, &"wood", 2)
+	if not villager.interact_with_component(storage, true, true):
+		_fail("Full storage rejected a queued carried-resource deposit.")
+	_arrive_at_reserved_slot(villager)
+	if villager.get_state_name() != "WAITING_FOR_COMPONENT_INTERACTION":
+		_fail("Villager did not wait at a full storage.")
+	if villager.get_backpack_amount() != 2 or storage.stored_amount != 3:
+		_fail("Waiting full-storage deposit changed resources too early.")
+	if villager.get_work_queue_count() != 1:
+		_fail("Waiting full-storage deposit removed the looped storage order.")
+
+	storage.force_take_input(2)
+	villager._update_work(villager.retry_interval)
+	if villager.get_backpack_amount() != 0 or storage.stored_amount != 3:
+		_fail("Villager did not deposit after storage space became available.")
+	if villager.get_state_name() == "WAITING_FOR_COMPONENT_INTERACTION":
+		_fail("Villager kept waiting after completing the storage deposit.")
+
+	storage.queue_free()
+	villager.queue_free()
+	await process_frame
+
+
+func _test_storage_partial_deposit_waits() -> void:
+	var storage := _instantiate("res://scenes/storage_component.tscn")
+	var villager := _instantiate("res://scenes/villager.tscn")
+	storage.capacity = 3
+	storage.stored_amount = 2
+	root.add_child(storage)
+	root.add_child(villager)
+	await process_frame
+
+	_set_backpack(villager, &"wood", 3)
+	if not villager.interact_with_component(storage, true, true):
+		_fail("Partial-space storage rejected a queued carried-resource deposit.")
+	_arrive_at_reserved_slot(villager)
+	if villager.get_state_name() != "WAITING_FOR_COMPONENT_INTERACTION":
+		_fail("Villager did not wait after a partial storage deposit.")
+	if villager.get_backpack_amount() != 2 or storage.stored_amount != 3:
+		_fail("Partial storage deposit did not fill storage and keep the remainder.")
+	if villager.get_work_queue_count() != 1:
+		_fail("Partial storage deposit removed the looped storage order.")
+
+	storage.force_take_input(2)
+	villager._update_work(villager.retry_interval)
+	if villager.get_backpack_amount() != 0 or storage.stored_amount != 3:
+		_fail("Villager did not finish partial deposit after more space opened.")
 
 	storage.queue_free()
 	villager.queue_free()

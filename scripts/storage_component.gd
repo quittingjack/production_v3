@@ -41,15 +41,13 @@ func can_interact(villager: Node) -> bool:
 		return false
 	if villager.get_backpack_amount() > 0:
 		if accepts_resource(villager.get_backpack_resource_type()):
-			var can_deposit := allow_deposit and has_storage_space()
-			if not can_deposit:
+			if not allow_deposit:
 				_log(
 					"can_interact",
 					"interaction rejected for deposit branch",
 					{
 						"villager": villager.name,
 						"allow_deposit": allow_deposit,
-						"has_storage_space": has_storage_space(),
 						"stored_amount": stored_amount,
 						"capacity": capacity,
 					}
@@ -58,7 +56,11 @@ func can_interact(villager: Node) -> bool:
 			_log(
 				"can_interact",
 				"interaction accepted for deposit branch",
-				{"villager": villager.name, "backpack_amount": villager.get_backpack_amount()}
+				{
+					"villager": villager.name,
+					"backpack_amount": villager.get_backpack_amount(),
+					"has_storage_space": has_storage_space(),
+				}
 			)
 			return true
 
@@ -122,9 +124,13 @@ func can_interact(villager: Node) -> bool:
 
 
 func perform_interaction(villager: Node) -> void:
+	try_perform_interaction(villager)
+
+
+func try_perform_interaction(villager: Node) -> bool:
 	if not is_instance_valid(villager):
 		_warn("perform_interaction", "skip interaction because villager is invalid")
-		return
+		return true
 	_log(
 		"perform_interaction",
 		"begin storage interaction",
@@ -143,7 +149,7 @@ func perform_interaction(villager: Node) -> void:
 				{"villager": villager.name, "resource_type": String(resource_type)}
 			)
 			villager.deposit_backpack_to_storage(self)
-			return
+			return villager.get_backpack_amount() <= 0
 		if villager.has_method("discard_backpack"):
 			_log(
 				"perform_interaction",
@@ -161,6 +167,7 @@ func perform_interaction(villager: Node) -> void:
 		{"villager": villager.name, "output_type": String(resource_type)}
 	)
 	villager.take_from_storage(self)
+	return true
 
 
 func accepts_resource(type: StringName) -> bool:
